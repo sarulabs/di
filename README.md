@@ -1,4 +1,6 @@
-# DI Container
+# DI Container V1
+
+A new version is available on master.
 
 Dependency injection container for golang.
 
@@ -59,5 +61,3 @@ c.Alias("best-item", "green-item")
 var greenItem *Item
 c.Make("best-item", &greenItem)
 ~~~
-
-
