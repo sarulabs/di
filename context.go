@@ -144,7 +144,7 @@ func (c *Context) SafeMake(name string, params ...interface{}) (interface{}, err
 		}
 	}
 
-	item, err := maker.Make(c, params...)
+	item, err := c.makeItem(maker, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +153,17 @@ func (c *Context) SafeMake(name string, params ...interface{}) (interface{}, err
 	}
 	c.items[item] = maker
 	return item, nil
+}
+
+func (c *Context) makeItem(maker Maker, params ...interface{}) (item interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("panic : " + fmt.Sprint(r))
+		}
+	}()
+
+	item, err = maker.Make(c, params...)
+	return
 }
 
 // Make creates a new item.
@@ -177,7 +188,7 @@ func (c *Context) close(item interface{}, closeParent, closeChildren bool) bool 
 
 	// try to find the item in the context
 	if maker, ok := c.items[item]; ok && maker.Close != nil {
-		maker.Close(item)
+		c.closeItem(maker, item)
 		delete(c.items, item)
 		return true
 	}
@@ -199,6 +210,15 @@ func (c *Context) close(item interface{}, closeParent, closeChildren bool) bool 
 	}
 
 	return false
+}
+
+func (c *Context) closeItem(maker Maker, item interface{}) {
+	defer func() {
+		recover()
+	}()
+
+	maker.Close(item)
+	return
 }
 
 // Delete removes all the references to the items that has been made by this context.

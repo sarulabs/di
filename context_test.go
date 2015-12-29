@@ -238,6 +238,29 @@ func TestMakerSafeMake(t *testing.T) {
 	}
 }
 
+func TestMakerPanicSafeMake(t *testing.T) {
+	cm, _ := NewContextManager("app")
+	app, _ := cm.Context("app")
+
+	cm.Maker(Maker{
+		Name:  "item",
+		Scope: "app",
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			panic("panic in Make function")
+		},
+	})
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Error("SafeMake should not panic")
+		}
+	}()
+
+	if _, err := app.SafeMake("item"); err == nil {
+		t.Error("should not panic but not be able to create the item either")
+	}
+}
+
 func TestSingletonSafeMake(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
 	app, _ := cm.Context("app")
@@ -432,6 +455,31 @@ func TestCloseFromChild(t *testing.T) {
 	if i2.Closed {
 		t.Error("should not have closed i2 from a parent context")
 	}
+}
+
+func TestClosePanic(t *testing.T) {
+	cm, _ := NewContextManager("app")
+	app, _ := cm.Context("app")
+
+	cm.Maker(Maker{
+		Name:  "item",
+		Scope: "app",
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			return &mockItem{}, nil
+		},
+		Close: func(item interface{}) {
+			panic("panic in Close function")
+		},
+	})
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Error("Close should not panic")
+		}
+	}()
+
+	item, _ := app.SafeMake("item")
+	app.Close(item)
 }
 
 func TestDelete(t *testing.T) {
