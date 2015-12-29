@@ -238,7 +238,7 @@ func TestMakerSafeMake(t *testing.T) {
 	}
 }
 
-func TestMakerPanicSafeMake(t *testing.T) {
+func TestMakePanic(t *testing.T) {
 	cm, _ := NewContextManager("app")
 	app, _ := cm.Context("app")
 
@@ -356,6 +356,38 @@ func TestMake(t *testing.T) {
 	})
 
 	if item := request.Make("item").(int); item != 10 {
+		t.Errorf("wrong item retrieved, %d", item)
+	}
+}
+
+func TestFill(t *testing.T) {
+	cm, _ := NewContextManager("app")
+	app, _ := cm.Context("app")
+
+	cm.Maker(Maker{
+		Name:  "item",
+		Scope: "app",
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			return params[0], nil
+		},
+	})
+
+	var item int
+	var wrongType string
+
+	if err := app.Fill(&wrongType, "item", 10); err == nil {
+		t.Error("should have failed to fill an item with the wrong type")
+	}
+
+	if err := app.Fill(&item, "item"); err == nil {
+		t.Error("should have required one parameter")
+	}
+
+	if err := app.Fill(&item, "item", 10); err != nil {
+		t.Errorf("should have filled the item : %d", err)
+	}
+
+	if item != 10 {
 		t.Errorf("wrong item retrieved, %d", item)
 	}
 }

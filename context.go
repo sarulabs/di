@@ -173,6 +173,15 @@ func (c *Context) Make(name string, params ...interface{}) interface{} {
 	return item
 }
 
+// Fill creates a new item and copies it in a given pointer.
+func (c *Context) Fill(item interface{}, name string, params ...interface{}) error {
+	i, err := c.SafeMake(name, params...)
+	if err != nil {
+		return err
+	}
+	return fill(i, item)
+}
+
 // Close apply the Close method defined in a Maker
 // on an item build with the Make method of the Maker
 // and retrived with the Make method of this Context.
