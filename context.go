@@ -106,9 +106,12 @@ func (c *Context) SafeMake(name string, params ...interface{}) (interface{}, err
 		return nil, errors.New("context has been deleted")
 	}
 
-	n := c.contextManager.ResolveName(name)
+	n, err := c.contextManager.ResolveName(name)
+	if err != nil {
+		return nil, err
+	}
 
-	// check instances in the ContextManager
+	// name is registered, check if it matches an Instance in the ContextManager
 	if instance, ok := c.contextManager.instances[n]; ok {
 		return instance, nil
 	}
@@ -126,7 +129,11 @@ func (c *Context) SafeMake(name string, params ...interface{}) (interface{}, err
 		if parent := c.ParentWithScope(maker.Scope); parent != nil {
 			return parent.SafeMake(name, params...)
 		}
-		return nil, fmt.Errorf("Maker for `%s` requires `%s` scope which is not this or a parent scope", name, maker.Scope)
+		return nil, fmt.Errorf(
+			"Maker for `%s` requires `%s` scope which does not match this Context scope or any of its parents scope",
+			name,
+			maker.Scope,
+		)
 	}
 
 	// it's the right scope, try to create the item
@@ -135,19 +142,14 @@ func (c *Context) SafeMake(name string, params ...interface{}) (interface{}, err
 		if item, ok := c.singletons[maker.Name]; ok {
 			return item, nil
 		}
-
-		item, err := maker.Make(c, params...)
-		if err != nil {
-			return nil, err
-		}
-		c.singletons[maker.Name] = item
-		c.items[item] = maker
-		return item, nil
 	}
 
 	item, err := maker.Make(c, params...)
 	if err != nil {
 		return nil, err
+	}
+	if maker.Singleton {
+		c.singletons[maker.Name] = item
 	}
 	c.items[item] = maker
 	return item, nil

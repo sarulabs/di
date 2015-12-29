@@ -5,14 +5,14 @@ import (
 	"fmt"
 )
 
-// Instance is used to define a prebuilt item in a ContextManager.
+// Instance is used to register a prebuilt item in a ContextManager.
 type Instance struct {
 	Name    string
 	Aliases []string
 	Item    interface{}
 }
 
-// Maker is used to defined how to build and close an item in a ContextManager.
+// Maker is used to define how to build and close an item in a ContextManager.
 type Maker struct {
 	Name      string
 	Aliases   []string
@@ -67,24 +67,25 @@ func checkScopes(scopes []string) error {
 }
 
 // ResolveName returns the real name of an entry by fowling aliases.
-// If the name is not used, it returns an empty string.
-func (cm *ContextManager) ResolveName(name string) string {
+// If the name is not used, it returns an empty string and an error.
+func (cm *ContextManager) ResolveName(name string) (string, error) {
 	if n, ok := cm.aliases[name]; ok {
-		return n
+		return n, nil
 	}
 	if _, ok := cm.instances[name]; ok {
-		return name
+		return name, nil
 	}
 	if _, ok := cm.makers[name]; ok {
-		return name
+		return name, nil
 	}
-	return ""
+	return "", fmt.Errorf("could not resolve name `%s`", name)
 }
 
 // NameIsUsed returns true if the name is already used in the ContextManager.
 // It can be used as an Instance name, a Maker name, or as an alias.
 func (cm *ContextManager) NameIsUsed(name string) bool {
-	return cm.ResolveName(name) != ""
+	_, err := cm.ResolveName(name)
+	return err == nil
 }
 
 func (cm *ContextManager) checkAliases(name string, aliases []string) error {

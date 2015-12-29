@@ -41,7 +41,7 @@ func TestResolveName(t *testing.T) {
 	}
 
 	for input, expected := range tests {
-		if output := cm.ResolveName(input); output != expected {
+		if output, _ := cm.ResolveName(input); output != expected {
 			t.Errorf("could not resolve name, expected `%s`, returned `%s`", expected, output)
 		}
 	}
