@@ -107,6 +107,7 @@ You can pass parameters to the `Make` function :
 
 ```go
 cm, _ := NewContextManager("app", "request")
+
 cm.Maker(di.Maker{
     Name: "item-name",
     Scope: "request",
@@ -117,7 +118,8 @@ cm.Maker(di.Maker{
         return &MyItem{params[0].(string)}, nil
     },
 })
-context, _ := cm.Context("app")
+
+context, _ := cm.Context("request")
 item := context.Make("item-name", "my-parameter").(*MyItem)
 ```
 
