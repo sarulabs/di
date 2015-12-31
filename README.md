@@ -13,7 +13,7 @@ First let's define the main components of this library :
 
 **Context** : a Context is a dependency injection container. Contexts should be used to retrieve items. They contain all previously built items.
 
-**ContextManager** : a ContextManager is used to store the definitions of the items you want to create.
+**ContextManager** : a ContextManager contains the definition of the items that can be created.
 
 **Scope** : contexts are not  necessarily independent. For example, a context can be attached to your whole application whereas others can be attached to an http request. In this case `application` and `request` are two scopes. The `request` contexts are sub-contexts of the `application` context. They are isolated at their level but share the same `application` context.
 
@@ -27,7 +27,8 @@ Instances are the simplest way to register an item. It works like a map. An Inst
 You can register the Instance in a ContextManager :
 
 ```go
-// app is the only scope of the ContextManager
+// first we create a ContextManager
+// app is the only scope of this ContextManager
 cm, _ := NewContextManager("app")
 
 // register &MyItem{} under the name item-name
@@ -41,7 +42,7 @@ cm.Instance(di.Instance{
 And then you can retrieve it from any Context created with this ContextManager :
 
 ```go
-// get an app Context to retrieve the Instance
+// get an app Context from the ContextManager to retrieve the Instance
 context, _ := cm.Context("app")
 item := context.Make("item-name").(*MyItem)
 ```
@@ -54,6 +55,8 @@ You will retrieve the exact same item every time you call the `Make` method.
 In an Instance, you directly register an item. In a Maker you define how to build and close an item.
 
 ```go
+// we create a ContextManager with two scopes
+// `request` is a sub-scope of `app`
 cm, _ := NewContextManager("app", "request")
 
 cm.Maker(di.Maker{
@@ -71,7 +74,7 @@ cm.Maker(di.Maker{
     },
 })
 
-context, _ := cm.Context("app")
+context, _ := cm.Context("request")
 item := context.Make("item-name").(*MyItem)
 ```
 
@@ -84,7 +87,7 @@ Makers can be singletons. In this case the `Make` function defined in the Maker 
 
 ### Create an item
 
-There are two functions to create an item.
+There are three functions to create an item.
 
 ```go
 // Make returns an interface that can be cast afterward.
@@ -95,6 +98,9 @@ item := itemInterface.(*MyItem)
 // SafeMake returns an interface, but also an error if something went wrong.
 // It can be used to find why an item could not be made.
 itemInterface, err := context.SafeMake("my-item")
+
+var anotherItem *MyItem
+err = context.Fill(&anotherItem, "my-item")
 ```
 
 You can pass parameters to the `Make` function :
