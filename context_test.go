@@ -2,10 +2,12 @@ package di
 
 import (
 	"errors"
+	"sync"
 	"testing"
 )
 
 type mockItem struct {
+	sync.Mutex
 	Closed bool
 }
 
@@ -403,7 +405,10 @@ func TestClose(t *testing.T) {
 			return &mockItem{}, nil
 		},
 		Close: func(item interface{}) {
-			item.(*mockItem).Closed = true
+			i := item.(*mockItem)
+			i.Lock()
+			i.Closed = true
+			i.Unlock()
 		},
 	})
 
@@ -436,7 +441,10 @@ func TestCloseFromParent(t *testing.T) {
 			return &mockItem{}, nil
 		},
 		Close: func(item interface{}) {
-			item.(*mockItem).Closed = true
+			i := item.(*mockItem)
+			i.Lock()
+			i.Closed = true
+			i.Unlock()
 		},
 	})
 
@@ -468,7 +476,10 @@ func TestCloseFromChild(t *testing.T) {
 			return &mockItem{}, nil
 		},
 		Close: func(item interface{}) {
-			item.(*mockItem).Closed = true
+			i := item.(*mockItem)
+			i.Lock()
+			i.Closed = true
+			i.Unlock()
 		},
 	})
 
@@ -527,7 +538,10 @@ func TestDelete(t *testing.T) {
 			return &mockItem{}, nil
 		},
 		Close: func(item interface{}) {
-			item.(*mockItem).Closed = true
+			i := item.(*mockItem)
+			i.Lock()
+			i.Closed = true
+			i.Unlock()
 		},
 	})
 
@@ -538,7 +552,10 @@ func TestDelete(t *testing.T) {
 			return &mockItem{}, nil
 		},
 		Close: func(item interface{}) {
-			item.(*mockItem).Closed = true
+			i := item.(*mockItem)
+			i.Lock()
+			i.Closed = true
+			i.Unlock()
 		},
 	})
 
@@ -549,7 +566,10 @@ func TestDelete(t *testing.T) {
 			return &mockItem{}, nil
 		},
 		Close: func(item interface{}) {
-			item.(*mockItem).Closed = true
+			i := item.(*mockItem)
+			i.Lock()
+			i.Closed = true
+			i.Unlock()
 		},
 	})
 
@@ -585,5 +605,171 @@ func TestDelete(t *testing.T) {
 
 	if _, err := request.SubContext("subrequest"); err == nil {
 		t.Error("should not be able to create a subcontext from a closed context")
+	}
+}
+
+func TestIfDeleteRemovesSingletonsCorrectly(t *testing.T) {
+	cm, _ := NewContextManager("app", "request")
+	app, _ := cm.Context("app")
+	request, _ := app.SubContext("request")
+
+	cm.Maker(Maker{
+		Name:      "item",
+		Scope:     "app",
+		Singleton: true,
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			return &mockItem{}, nil
+		},
+		Close: func(item interface{}) {
+			item.(*mockItem).Closed = true
+		},
+	})
+
+	item := request.Make("item").(*mockItem)
+
+	if len(app.items) != 1 {
+		t.Error("singleton should be saved in app")
+	}
+	if len(request.items) != 0 {
+		t.Error("singleton should not be saved in request")
+	}
+
+	request.Delete()
+
+	if item.Closed {
+		t.Error("should not have closed the singleton")
+	}
+	if len(app.items) != 1 {
+		t.Error("singleton should still exist in app")
+	}
+
+	app.Delete()
+
+	if !item.Closed {
+		t.Error("should have closed the singleton")
+	}
+	if len(app.items) != 0 {
+		t.Error("singleton should not exist in app anymore")
+	}
+}
+
+func TestIfDeleteRemovesOneShotItemsCorrectly(t *testing.T) {
+	cm, _ := NewContextManager("app", "request")
+	app, _ := cm.Context("app")
+	request, _ := app.SubContext("request")
+
+	cm.Maker(Maker{
+		Name:      "item",
+		Scope:     "app",
+		Singleton: false,
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			return &mockItem{}, nil
+		},
+		Close: func(item interface{}) {
+			item.(*mockItem).Closed = true
+		},
+	})
+
+	item := request.Make("item").(*mockItem)
+
+	if len(app.items) != 0 {
+		t.Error("item should not be saved in app")
+	}
+	if len(request.items) != 1 {
+		t.Error("item should be saved in request")
+	}
+
+	request.Delete()
+
+	if !item.Closed {
+		t.Error("should have closed item")
+	}
+	if len(request.items) != 0 {
+		t.Error("item should not exist in request anymore")
+	}
+}
+
+func TestRace(t *testing.T) {
+	cm, _ := NewContextManager("app", "request", "subrequest")
+
+	cm.Instance(Instance{
+		Name: "instance",
+		Item: &mockItem{},
+	})
+
+	cm.Maker(Maker{
+		Name:      "singleton",
+		Scope:     "app",
+		Singleton: true,
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			return &mockItem{}, nil
+		},
+		Close: func(item interface{}) {
+			i := item.(*mockItem)
+			i.Lock()
+			i.Closed = true
+			i.Unlock()
+		},
+	})
+
+	cm.Maker(Maker{
+		Name:  "item",
+		Scope: "app",
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			return &mockItem{}, nil
+		},
+		Close: func(item interface{}) {
+			i := item.(*mockItem)
+			i.Lock()
+			i.Closed = true
+			i.Unlock()
+		},
+	})
+
+	cm.Maker(Maker{
+		Name:  "nested",
+		Scope: "request",
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			return &nestedMockItem{c.Make("item").(*mockItem)}, nil
+		},
+		Close: func(item interface{}) {
+			i := item.(*nestedMockItem)
+			i.Item.Lock()
+			i.Item.Closed = true
+			i.Item.Unlock()
+		},
+	})
+
+	app, _ := cm.Context("app")
+
+	for i := 0; i < 1000; i++ {
+		go func() {
+			request, _ := app.SubContext("request")
+			defer request.Delete()
+
+			request.Make("singleton")
+			request.Make("item")
+			request.Make("instance")
+			request.Make("nested")
+
+			go func() {
+				subrequest, _ := app.SubContext("subrequest")
+				defer subrequest.Delete()
+
+				subrequest.Make("singleton")
+				subrequest.Make("item")
+				subrequest.Make("instance")
+				subrequest.Make("nested")
+				subrequest.Make("singleton")
+				subrequest.Make("item")
+				subrequest.Make("instance")
+				subrequest.Make("nested")
+			}()
+
+			request.Make("singleton")
+			request.Make("item")
+			request.Make("instance")
+			request.Make("nested")
+		}()
 	}
 }
