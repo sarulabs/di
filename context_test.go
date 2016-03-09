@@ -140,14 +140,15 @@ func TestSubContextCreation(t *testing.T) {
 
 func TestInstanceSafeMake(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	request, _ := cm.Context("request")
 
 	one := &mockItem{}
 	two := &mockItem{}
 
 	cm.Instance(Instance{Name: "i1", Aliases: []string{"a1"}, Item: one})
 	cm.Instance(Instance{Name: "i2", Aliases: []string{"a2"}, Item: two})
+
+	app, _ := cm.Context("app")
+	request, _ := cm.Context("request")
 
 	if _, err := app.SafeMake("undefined"); err == nil {
 		t.Error("should not be able to create an undefined instance")
@@ -174,9 +175,6 @@ func TestInstanceSafeMake(t *testing.T) {
 
 func TestMakerSafeMake(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-	subrequest, _ := request.SubContext("subrequest")
 
 	cm.Maker(Maker{
 		Name:    "item",
@@ -189,6 +187,10 @@ func TestMakerSafeMake(t *testing.T) {
 			return params[0].(int), nil
 		},
 	})
+
+	app, _ := cm.Context("app")
+	request, _ := app.SubContext("request")
+	subrequest, _ := request.SubContext("subrequest")
 
 	if _, err := app.SafeMake("item", 0); err == nil {
 		t.Error("should not be able to create the item from the app scope")
@@ -242,7 +244,6 @@ func TestMakerSafeMake(t *testing.T) {
 
 func TestMakePanic(t *testing.T) {
 	cm, _ := NewContextManager("app")
-	app, _ := cm.Context("app")
 
 	cm.Maker(Maker{
 		Name:  "item",
@@ -251,6 +252,8 @@ func TestMakePanic(t *testing.T) {
 			panic("panic in Make function")
 		},
 	})
+
+	app, _ := cm.Context("app")
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -265,9 +268,6 @@ func TestMakePanic(t *testing.T) {
 
 func TestSingletonSafeMake(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-	subrequest, _ := request.SubContext("subrequest")
 
 	cm.Maker(Maker{
 		Name:      "item",
@@ -280,6 +280,10 @@ func TestSingletonSafeMake(t *testing.T) {
 			return params[0].(int), nil
 		},
 	})
+
+	app, _ := cm.Context("app")
+	request, _ := app.SubContext("request")
+	subrequest, _ := request.SubContext("subrequest")
 
 	var item interface{}
 	var err error
@@ -324,7 +328,6 @@ func TestSingletonSafeMake(t *testing.T) {
 
 func TestNestedDependencies(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	request, _ := cm.Context("request")
 
 	appItem := &mockItem{}
 
@@ -338,6 +341,8 @@ func TestNestedDependencies(t *testing.T) {
 		},
 	})
 
+	request, _ := cm.Context("request")
+
 	nestedItem := request.Make("requestItem").(*nestedMockItem)
 
 	if nestedItem.Item != appItem {
@@ -347,7 +352,6 @@ func TestNestedDependencies(t *testing.T) {
 
 func TestMake(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	request, _ := cm.Context("request")
 
 	cm.Maker(Maker{
 		Name:  "item",
@@ -357,6 +361,8 @@ func TestMake(t *testing.T) {
 		},
 	})
 
+	request, _ := cm.Context("request")
+
 	if item := request.Make("item").(int); item != 10 {
 		t.Errorf("wrong item retrieved, %d", item)
 	}
@@ -364,7 +370,6 @@ func TestMake(t *testing.T) {
 
 func TestFill(t *testing.T) {
 	cm, _ := NewContextManager("app")
-	app, _ := cm.Context("app")
 
 	cm.Maker(Maker{
 		Name:  "item",
@@ -373,6 +378,8 @@ func TestFill(t *testing.T) {
 			return params[0], nil
 		},
 	})
+
+	app, _ := cm.Context("app")
 
 	var item int
 	var wrongType string
@@ -396,7 +403,6 @@ func TestFill(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	request, _ := cm.Context("request")
 
 	cm.Maker(Maker{
 		Name:  "item",
@@ -411,6 +417,8 @@ func TestClose(t *testing.T) {
 			i.Unlock()
 		},
 	})
+
+	request, _ := cm.Context("request")
 
 	i1 := request.Make("item").(*mockItem)
 	i2 := request.Make("item").(*mockItem)
@@ -431,8 +439,6 @@ func TestClose(t *testing.T) {
 
 func TestCloseFromParent(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
 
 	cm.Maker(Maker{
 		Name:  "item",
@@ -447,6 +453,9 @@ func TestCloseFromParent(t *testing.T) {
 			i.Unlock()
 		},
 	})
+
+	app, _ := cm.Context("app")
+	request, _ := app.SubContext("request")
 
 	i1 := request.Make("item").(*mockItem)
 	i2 := request.Make("item").(*mockItem)
@@ -467,7 +476,6 @@ func TestCloseFromParent(t *testing.T) {
 
 func TestCloseFromChild(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	subrequest, _ := cm.Context("subrequest")
 
 	cm.Maker(Maker{
 		Name:  "item",
@@ -482,6 +490,8 @@ func TestCloseFromChild(t *testing.T) {
 			i.Unlock()
 		},
 	})
+
+	subrequest, _ := cm.Context("subrequest")
 
 	i1 := subrequest.Make("item").(*mockItem)
 	i2 := subrequest.Make("item").(*mockItem)
@@ -502,7 +512,6 @@ func TestCloseFromChild(t *testing.T) {
 
 func TestClosePanic(t *testing.T) {
 	cm, _ := NewContextManager("app")
-	app, _ := cm.Context("app")
 
 	cm.Maker(Maker{
 		Name:  "item",
@@ -514,6 +523,8 @@ func TestClosePanic(t *testing.T) {
 			panic("panic in Close function")
 		},
 	})
+
+	app, _ := cm.Context("app")
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -527,9 +538,6 @@ func TestClosePanic(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-	subrequest, _ := request.SubContext("subrequest")
 
 	cm.Maker(Maker{
 		Name:  "i1",
@@ -573,6 +581,10 @@ func TestDelete(t *testing.T) {
 		},
 	})
 
+	app, _ := cm.Context("app")
+	request, _ := app.SubContext("request")
+	subrequest, _ := request.SubContext("subrequest")
+
 	i1 := app.Make("i1").(*mockItem)
 	i2 := request.Make("i2").(*mockItem)
 	i3 := subrequest.Make("i3").(*mockItem)
@@ -610,8 +622,6 @@ func TestDelete(t *testing.T) {
 
 func TestIfDeleteRemovesSingletonsCorrectly(t *testing.T) {
 	cm, _ := NewContextManager("app", "request")
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
 
 	cm.Maker(Maker{
 		Name:      "item",
@@ -624,6 +634,9 @@ func TestIfDeleteRemovesSingletonsCorrectly(t *testing.T) {
 			item.(*mockItem).Closed = true
 		},
 	})
+
+	app, _ := cm.Context("app")
+	request, _ := app.SubContext("request")
 
 	item := request.Make("item").(*mockItem)
 
@@ -655,8 +668,6 @@ func TestIfDeleteRemovesSingletonsCorrectly(t *testing.T) {
 
 func TestIfDeleteRemovesOneShotItemsCorrectly(t *testing.T) {
 	cm, _ := NewContextManager("app", "request")
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
 
 	cm.Maker(Maker{
 		Name:      "item",
@@ -669,6 +680,9 @@ func TestIfDeleteRemovesOneShotItemsCorrectly(t *testing.T) {
 			item.(*mockItem).Closed = true
 		},
 	})
+
+	app, _ := cm.Context("app")
+	request, _ := app.SubContext("request")
 
 	item := request.Make("item").(*mockItem)
 

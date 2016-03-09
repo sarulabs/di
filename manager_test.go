@@ -171,3 +171,28 @@ func TestContextCeation(t *testing.T) {
 		t.Error("subrequest should not use the same app Context")
 	}
 }
+
+func TestThatManagerIsClosedAfterTheFirstContextIsCreated(t *testing.T) {
+	cm, _ := NewContextManager("app")
+	cm.Context("app")
+
+	var err error
+
+	err = cm.Instance(Instance{
+		Name: "instance",
+		Item: "value",
+	})
+
+	if err == nil {
+		t.Error("it should not be possible to register an instance at this point")
+	}
+
+	err = cm.Maker(Maker{
+		Name:  "maker",
+		Scope: "app",
+	})
+
+	if err == nil {
+		t.Error("it should not be possible to register an maker at this point")
+	}
+}

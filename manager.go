@@ -25,6 +25,7 @@ type Maker struct {
 // ContextManager contains the definition of every items.
 // You must use the NewContextManager function to create a ContextManager.
 type ContextManager struct {
+	frozen    bool
 	aliases   map[string]string
 	instances map[string]interface{}
 	makers    map[string]Maker
@@ -112,6 +113,10 @@ func (cm *ContextManager) checkAliases(name string, aliases []string) error {
 // Maker adds a Maker to the ContextManager.
 // It returns an error if the Maker is not well defined.
 func (cm *ContextManager) Maker(maker Maker) error {
+	if cm.frozen {
+		return errors.New("the ContextManager is frozen because a Context has already been created")
+	}
+
 	// check if scope exists
 	if !stringSliceContains(cm.scopes, maker.Scope) {
 		return fmt.Errorf("scope `%s` is not defined", maker.Scope)
@@ -143,6 +148,10 @@ func (cm *ContextManager) Maker(maker Maker) error {
 // Instance adds an Instance to the ContextManager.
 // It returns an error if the name or the aliases are already used.
 func (cm *ContextManager) Instance(instance Instance) error {
+	if cm.frozen {
+		return errors.New("the ContextManager is frozen because a Context has already been created")
+	}
+
 	// check if name is valid and available
 	if instance.Name == "" {
 		return errors.New("Instance name can't be empty")
@@ -171,6 +180,8 @@ func (cm *ContextManager) Instance(instance Instance) error {
 // But if you have two scopes ["app", "request"] and you ask
 // for a "request" Context twice, it will create two different "app" Context.
 func (cm *ContextManager) Context(scope string) (*Context, error) {
+	cm.frozen = true
+
 	context := &Context{
 		scope:          cm.scopes[0],
 		contextManager: cm,
