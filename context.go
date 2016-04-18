@@ -184,7 +184,10 @@ func (c *Context) makeInThisContext(maker Maker, params ...interface{}) (interfa
 	}
 
 	// save the item so you can close it later on
-	c.items[item] = maker
+	// close does not work with items that are not hashable
+	if isHashable(item) {
+		c.items[item] = maker
+	}
 
 	return item, nil
 }

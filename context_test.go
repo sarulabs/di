@@ -288,13 +288,13 @@ func TestSingletonSafeMake(t *testing.T) {
 	var item interface{}
 	var err error
 
-	if _, err := app.SafeMake("item", 0); err == nil {
+	if _, err = app.SafeMake("item", 0); err == nil {
 		t.Error("should not be able to create the item from the app scope")
 	}
-	if _, err := request.SafeMake("undefined"); err == nil {
+	if _, err = request.SafeMake("undefined"); err == nil {
 		t.Error("should not be able to create an undefined item")
 	}
-	if _, err := request.SafeMake("item"); err == nil {
+	if _, err = request.SafeMake("item"); err == nil {
 		t.Error("should get the error from the Make function because SafeMake was called without any parameter")
 	}
 
@@ -393,7 +393,7 @@ func TestFill(t *testing.T) {
 	}
 
 	if err := app.Fill(&item, "item", 10); err != nil {
-		t.Errorf("should have filled the item : %d", err)
+		t.Errorf("should have filled the item : %s", err)
 	}
 
 	if item != 10 {
@@ -785,5 +785,24 @@ func TestRace(t *testing.T) {
 			request.Make("instance")
 			request.Make("nested")
 		}()
+	}
+}
+
+func TestUnhashableItem(t *testing.T) {
+	cm, _ := NewContextManager("app")
+
+	cm.Maker(Maker{
+		Name:  "item",
+		Scope: "app",
+		Make: func(c *Context, params ...interface{}) (interface{}, error) {
+			return map[string]string{}, nil
+		},
+	})
+
+	app, _ := cm.Context("app")
+
+	m, ok := app.Make("item").(map[string]string)
+	if !ok || m == nil {
+		t.Error("should be able to use unhashable items")
 	}
 }
