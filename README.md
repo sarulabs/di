@@ -234,7 +234,7 @@ func createContextManager() *di.ContextManager {
 }
 
 func handler(w http.ResponseWriter, r *http.Request, c *di.Context) {
-    // Retrieve the conection
+    // Retrieve the connection
     db := c.Make("mysql").(*sql.DB)
 
     var variable, value string
