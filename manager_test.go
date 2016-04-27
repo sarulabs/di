@@ -140,6 +140,12 @@ func TestInstanceRegistrationErrors(t *testing.T) {
 
 	err = cm.Instance(Instance{Name: "instance2", Aliases: []string{"i2"}})
 	assert.Nil(t, err)
+
+	err = cm.Set("instance3", "value")
+	assert.Nil(t, err)
+
+	err = cm.Set("instance", "value")
+	assert.NotNil(t, err, "should not be able to register a Instance if the name is already used")
 }
 
 func TestContextCeation(t *testing.T) {

@@ -174,6 +174,14 @@ func (cm *ContextManager) Instance(instance Instance) error {
 	return nil
 }
 
+// Set is a shortcut to add an Instance without any alias.
+func (cm *ContextManager) Set(name string, item interface{}) error {
+	return cm.Instance(Instance{
+		Name: name,
+		Item: item,
+	})
+}
+
 // Context returns a context for the desired scope.
 // You can ask for any scope, not only the first one.
 // But if you have two scopes ["app", "request"] and you ask

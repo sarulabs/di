@@ -209,7 +209,7 @@ func TestNestedDependencies(t *testing.T) {
 
 	appItem := &mockItem{}
 
-	cm.Instance(Instance{Name: "appItem", Item: appItem})
+	cm.Set("appItem", appItem)
 
 	cm.Maker(Maker{
 		Name:  "requestItem",
@@ -386,10 +386,7 @@ func TestClosePanic(t *testing.T) {
 func TestRace(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
 
-	cm.Instance(Instance{
-		Name: "instance",
-		Item: &mockItem{},
-	})
+	cm.Set("instance", &mockItem{})
 
 	cm.Maker(Maker{
 		Name:  "item",
