@@ -1,0 +1,3 @@
+package: github.com/sarulabs/di
+import:
+- package: github.com/stretchr/testify

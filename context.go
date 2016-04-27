@@ -18,15 +18,15 @@ type Context struct {
 }
 
 // Scope returns the name of the context scope.
-func (c *Context) Scope() string {
-	return c.scope
+func (ctx *Context) Scope() string {
+	return ctx.scope
 }
 
 // ParentScopes returns the list of this context parent scopes.
-func (c *Context) ParentScopes() []string {
-	if manager := c.ContextManager(); manager != nil {
+func (ctx *Context) ParentScopes() []string {
+	if manager := ctx.ContextManager(); manager != nil {
 		for i, s := range manager.scopes {
-			if s == c.scope {
+			if s == ctx.scope {
 				return manager.scopes[:i]
 			}
 		}
@@ -35,10 +35,10 @@ func (c *Context) ParentScopes() []string {
 }
 
 // SubScopes returns the list of this context subscopes.
-func (c *Context) SubScopes() []string {
-	if manager := c.ContextManager(); manager != nil {
+func (ctx *Context) SubScopes() []string {
+	if manager := ctx.ContextManager(); manager != nil {
 		for i, s := range manager.scopes {
-			if s == c.scope {
+			if s == ctx.scope {
 				return manager.scopes[i+1:]
 			}
 		}
@@ -47,27 +47,27 @@ func (c *Context) SubScopes() []string {
 }
 
 // HasSubScope returns true if scope is one of this context subscopes.
-func (c *Context) HasSubScope(scope string) bool {
-	return stringSliceContains(c.SubScopes(), scope)
+func (ctx *Context) HasSubScope(scope string) bool {
+	return stringSliceContains(ctx.SubScopes(), scope)
 }
 
 // ContextManager returns the ContextManager that has generated this Context.
-func (c *Context) ContextManager() *ContextManager {
-	c.m.Lock()
-	defer c.m.Unlock()
-	return c.contextManager
+func (ctx *Context) ContextManager() *ContextManager {
+	ctx.m.Lock()
+	defer ctx.m.Unlock()
+	return ctx.contextManager
 }
 
 // Parent returns the parent Context.
-func (c *Context) Parent() *Context {
-	c.m.Lock()
-	defer c.m.Unlock()
-	return c.parent
+func (ctx *Context) Parent() *Context {
+	ctx.m.Lock()
+	defer ctx.m.Unlock()
+	return ctx.parent
 }
 
 // ParentWithScope looks over the parents to find one with the given scope.
-func (c *Context) ParentWithScope(scope string) *Context {
-	parent := c.Parent()
+func (ctx *Context) ParentWithScope(scope string) *Context {
+	parent := ctx.Parent()
 
 	for parent != nil {
 		if parent.scope == scope {
@@ -81,34 +81,34 @@ func (c *Context) ParentWithScope(scope string) *Context {
 
 // SubContext creates a new Context in a subscope
 // that will have this Container as parent.
-func (c *Context) SubContext(scope string) (*Context, error) {
-	if !c.HasSubScope(scope) {
-		return nil, fmt.Errorf("you need to call SubContext with a subscope of `%s` and `%s` is not", c.scope, scope)
+func (ctx *Context) SubContext(scope string) (*Context, error) {
+	if !ctx.HasSubScope(scope) {
+		return nil, fmt.Errorf("you need to call SubContext with a subscope of `%s` and `%s` is not", ctx.scope, scope)
 	}
 
-	return c.subContext(scope, c.SubScopes())
+	return ctx.subContext(scope, ctx.SubScopes())
 }
 
-func (c *Context) subContext(scope string, subscopes []string) (*Context, error) {
-	c.m.Lock()
+func (ctx *Context) subContext(scope string, subscopes []string) (*Context, error) {
+	ctx.m.Lock()
 
-	if c.contextManager == nil {
-		c.m.Unlock()
-		return nil, fmt.Errorf("could not create sub-context of closed `%s` context", c.scope)
+	if ctx.contextManager == nil {
+		ctx.m.Unlock()
+		return nil, fmt.Errorf("could not create sub-context of closed `%s` context", ctx.scope)
 	}
 
 	child := &Context{
 		scope:          subscopes[0],
-		contextManager: c.contextManager,
-		parent:         c,
+		contextManager: ctx.contextManager,
+		parent:         ctx,
 		children:       []*Context{},
 		singletons:     map[string]interface{}{},
 		items:          map[interface{}]Maker{},
 	}
 
-	c.children = append(c.children, child)
+	ctx.children = append(ctx.children, child)
 
-	c.m.Unlock()
+	ctx.m.Unlock()
 
 	if child.scope == scope {
 		return child, nil
@@ -119,8 +119,8 @@ func (c *Context) subContext(scope string, subscopes []string) (*Context, error)
 
 // SafeMake creates a new item.
 // If the item can't be created, it returns an error.
-func (c *Context) SafeMake(name string, params ...interface{}) (interface{}, error) {
-	manager := c.ContextManager()
+func (ctx *Context) SafeMake(name string) (interface{}, error) {
+	manager := ctx.ContextManager()
 	if manager == nil {
 		return nil, errors.New("context has been deleted")
 	}
@@ -144,20 +144,20 @@ func (c *Context) SafeMake(name string, params ...interface{}) (interface{}, err
 
 	// if the Maker scope doesn't math this Context scope
 	// try to make the item in a parent Context matching the Maker scope
-	if c.scope != maker.Scope {
-		return c.makeInParent(maker, params...)
+	if ctx.scope != maker.Scope {
+		return ctx.makeInParent(maker)
 	}
 
 	// it's the suitable Maker in the right scope, provide the item
-	return c.makeInThisContext(maker, params...)
+	return ctx.makeInThisContext(maker)
 }
 
-func (c *Context) makeInThisContext(maker Maker, params ...interface{}) (interface{}, error) {
+func (ctx *Context) makeInThisContext(maker Maker) (interface{}, error) {
 	// if it's a singleton, try to reuse an already made item
 	if maker.Singleton {
-		c.m.Lock()
-		item, ok := c.singletons[maker.Name]
-		c.m.Unlock()
+		ctx.m.Lock()
+		item, ok := ctx.singletons[maker.Name]
+		ctx.m.Unlock()
 
 		if ok {
 			return item, nil
@@ -165,35 +165,35 @@ func (c *Context) makeInThisContext(maker Maker, params ...interface{}) (interfa
 	}
 
 	// the item has not been made yet, so create it
-	item, err := c.makeItem(maker, params...)
+	item, err := ctx.makeItem(maker)
 	if err != nil {
 		return nil, err
 	}
 
-	c.m.Lock()
-	defer c.m.Unlock()
+	ctx.m.Lock()
+	defer ctx.m.Unlock()
 
 	// ensure the Context is not closed before adding anything to it
-	if c.contextManager == nil {
+	if ctx.contextManager == nil {
 		return nil, errors.New("context has been deleted")
 	}
 
 	// if it is a singleton, save it to reuse it later on
 	if maker.Singleton {
-		c.singletons[maker.Name] = item
+		ctx.singletons[maker.Name] = item
 	}
 
 	// save the item so you can close it later on
 	// close does not work with items that are not hashable
 	if isHashable(item) {
-		c.items[item] = maker
+		ctx.items[item] = maker
 	}
 
 	return item, nil
 }
 
-func (c *Context) makeInParent(maker Maker, params ...interface{}) (interface{}, error) {
-	parent := c.ParentWithScope(maker.Scope)
+func (ctx *Context) makeInParent(maker Maker, params ...interface{}) (interface{}, error) {
+	parent := ctx.ParentWithScope(maker.Scope)
 	if parent == nil {
 		return nil, fmt.Errorf(
 			"Maker for `%s` requires `%s` scope which does not match this Context scope or any of its parents scope",
@@ -202,15 +202,15 @@ func (c *Context) makeInParent(maker Maker, params ...interface{}) (interface{},
 		)
 	}
 
-	item, err := parent.makeInThisContext(maker, params...)
+	item, err := parent.makeInThisContext(maker)
 	if err != nil {
 		return item, err
 	}
 
-	c.m.Lock()
-	defer c.m.Unlock()
+	ctx.m.Lock()
+	defer ctx.m.Unlock()
 
-	if c.contextManager == nil {
+	if ctx.contextManager == nil {
 		// the item was created and saved in the parent Context, but this Context was closed in the meantime
 		// close the item and remove the reference from the parent
 		parent.m.Lock()
@@ -228,33 +228,33 @@ func (c *Context) makeInParent(maker Maker, params ...interface{}) (interface{},
 		delete(parent.items, item)
 		parent.m.Unlock()
 
-		c.items[item] = maker
+		ctx.items[item] = maker
 	}
 
 	return item, nil
 }
 
-func (c *Context) makeItem(maker Maker, params ...interface{}) (item interface{}, err error) {
+func (ctx *Context) makeItem(maker Maker) (item interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.New("panic : " + fmt.Sprint(r))
 		}
 	}()
 
-	item, err = maker.Make(c, params...)
+	item, err = maker.Make(ctx)
 	return
 }
 
 // Make creates a new item.
 // If the item can't be created, it returns nil.
-func (c *Context) Make(name string, params ...interface{}) interface{} {
-	item, _ := c.SafeMake(name, params...)
+func (ctx *Context) Make(name string) interface{} {
+	item, _ := ctx.SafeMake(name)
 	return item
 }
 
 // Fill creates a new item and copies it in a given pointer.
-func (c *Context) Fill(item interface{}, name string, params ...interface{}) error {
-	i, err := c.SafeMake(name, params...)
+func (ctx *Context) Fill(name string, item interface{}) error {
+	i, err := ctx.SafeMake(name)
 	if err != nil {
 		return err
 	}
@@ -264,34 +264,34 @@ func (c *Context) Fill(item interface{}, name string, params ...interface{}) err
 // Close apply the Close method defined in a Maker
 // on an item build with the Make method of the Maker
 // and retrived with the Make method of this Context.
-func (c *Context) Close(item interface{}) {
-	c.close(item, true, true)
+func (ctx *Context) Close(item interface{}) {
+	ctx.close(item, true, true)
 }
 
-func (c *Context) close(item interface{}, closeParent, closeChildren bool) bool {
+func (ctx *Context) close(item interface{}, closeParent, closeChildren bool) bool {
 	// try to find the item in the context
-	c.m.Lock()
-	maker, ok := c.items[item]
-	c.m.Unlock()
+	ctx.m.Lock()
+	maker, ok := ctx.items[item]
+	ctx.m.Unlock()
 
 	if ok && maker.Close != nil {
-		c.closeItem(maker, item)
+		ctx.closeItem(maker, item)
 
-		c.m.Lock()
-		delete(c.items, item)
-		c.m.Unlock()
+		ctx.m.Lock()
+		delete(ctx.items, item)
+		ctx.m.Unlock()
 
 		return true
 	}
 
 	// the item was not in this context, try to find it in its children
 	if closeChildren {
-		c.m.Lock()
+		ctx.m.Lock()
 
-		children := make([]*Context, len(c.children))
-		copy(children, c.children)
+		children := make([]*Context, len(ctx.children))
+		copy(children, ctx.children)
 
-		c.m.Unlock()
+		ctx.m.Unlock()
 
 		for _, child := range children {
 			if child.close(item, false, true) {
@@ -301,7 +301,7 @@ func (c *Context) close(item interface{}, closeParent, closeChildren bool) bool 
 	}
 
 	// the item was not in the children, try to remove it from the parent.
-	parent := c.Parent()
+	parent := ctx.Parent()
 
 	if closeParent && parent != nil {
 		return parent.close(item, true, false)
@@ -310,7 +310,7 @@ func (c *Context) close(item interface{}, closeParent, closeChildren bool) bool 
 	return false
 }
 
-func (c *Context) closeItem(maker Maker, item interface{}) {
+func (ctx *Context) closeItem(maker Maker, item interface{}) {
 	defer func() {
 		recover()
 	}()
@@ -323,24 +323,24 @@ func (c *Context) closeItem(maker Maker, item interface{}) {
 // Before removing the references, it calls the Close method on these items.
 // It will also call Delete on every child
 // and remove its reference in the parent Context.
-func (c *Context) Delete() {
-	c.m.Lock()
+func (ctx *Context) Delete() {
+	ctx.m.Lock()
 
 	// copy children, parent and items so they can be removed outside of the locked area
-	children := make([]*Context, len(c.children))
-	copy(children, c.children)
+	children := make([]*Context, len(ctx.children))
+	copy(children, ctx.children)
 
-	parent := c.parent
+	parent := ctx.parent
 
 	items := map[interface{}]Maker{}
-	for item, maker := range c.items {
+	for item, maker := range ctx.items {
 		items[item] = maker
 	}
 
 	// remove contextManager to mark this Context as closed
-	c.contextManager = nil
+	ctx.contextManager = nil
 
-	c.m.Unlock()
+	ctx.m.Unlock()
 
 	// delete children
 	for _, child := range children {
@@ -351,7 +351,7 @@ func (c *Context) Delete() {
 	if parent != nil {
 		parent.m.Lock()
 		for i, child := range parent.children {
-			if c == child {
+			if ctx == child {
 				parent.children = append(parent.children[:i], parent.children[i+1:]...)
 				break
 			}
@@ -361,14 +361,14 @@ func (c *Context) Delete() {
 
 	// close items
 	for item := range items {
-		c.Close(item)
+		ctx.Close(item)
 	}
 
 	// remove references
-	c.m.Lock()
-	c.parent = nil
-	c.children = nil
-	c.singletons = nil
-	c.items = nil
-	c.m.Unlock()
+	ctx.m.Lock()
+	ctx.parent = nil
+	ctx.children = nil
+	ctx.singletons = nil
+	ctx.items = nil
+	ctx.m.Unlock()
 }

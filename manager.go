@@ -18,7 +18,7 @@ type Maker struct {
 	Aliases   []string
 	Scope     string
 	Singleton bool
-	Make      func(c *Context, params ...interface{}) (interface{}, error)
+	Make      func(ctx *Context) (interface{}, error)
 	Close     func(item interface{})
 }
 
@@ -182,7 +182,7 @@ func (cm *ContextManager) Instance(instance Instance) error {
 func (cm *ContextManager) Context(scope string) (*Context, error) {
 	cm.frozen = true
 
-	context := &Context{
+	ctx := &Context{
 		scope:          cm.scopes[0],
 		contextManager: cm,
 		parent:         nil,
@@ -191,9 +191,9 @@ func (cm *ContextManager) Context(scope string) (*Context, error) {
 		items:          map[interface{}]Maker{},
 	}
 
-	if scope == context.scope {
-		return context, nil
+	if scope == ctx.scope {
+		return ctx, nil
 	}
 
-	return context.SubContext(scope)
+	return ctx.SubContext(scope)
 }

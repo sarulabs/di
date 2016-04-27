@@ -1,15 +1,14 @@
 package di
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestStringSliceContains(t *testing.T) {
-	if !stringSliceContains([]string{"1", "2", "3"}, "2") {
-		t.Error("slice should contain 3")
-	}
-
-	if stringSliceContains([]string{"1", "2", "3"}, "0") {
-		t.Error("slice should not contain 0")
-	}
+	assert.True(t, stringSliceContains([]string{"1", "2", "3"}, "2"))
+	assert.False(t, stringSliceContains([]string{"1", "2", "3"}, "0"))
 }
 
 func TestFillUtil(t *testing.T) {
@@ -17,38 +16,17 @@ func TestFillUtil(t *testing.T) {
 
 	var i int
 	err = fill(100, &i)
-	if err != nil || i != 100 {
-		t.Errorf("i should have been initialized but is %d (err=%s)", i, err)
-	}
+	assert.Nil(t, err)
+	assert.Equal(t, 100, i)
 
 	err = fill(100, i)
-	if err == nil {
-		t.Error("i should not have been initialized")
-	}
+	assert.NotNil(t, err)
 }
 
 func TestIsHashable(t *testing.T) {
-	if !isHashable("string") {
-		t.Error("string are hashable")
-	}
-
-	if !isHashable(33) {
-		t.Error("int are hashable")
-	}
-
-	if !isHashable(struct{}{}) {
-		t.Error("structs are hashable")
-	}
-
-	if !isHashable(&struct{}{}) {
-		t.Error("pointers are hashable")
-	}
-
-	if isHashable([]interface{}{}) {
-		t.Error("slices are not hashable")
-	}
-
-	if isHashable(map[interface{}]interface{}{}) {
-		t.Error("maps are not hashable")
-	}
+	assert.True(t, isHashable("string"))
+	assert.True(t, isHashable(33))
+	assert.True(t, isHashable(struct{}{}))
+	assert.False(t, isHashable([]interface{}{}))
+	assert.False(t, isHashable(map[interface{}]interface{}{}))
 }
