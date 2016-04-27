@@ -14,12 +14,11 @@ type Instance struct {
 
 // Maker is used to define how to build and close an item in a ContextManager.
 type Maker struct {
-	Name      string
-	Aliases   []string
-	Scope     string
-	Singleton bool
-	Make      func(ctx *Context) (interface{}, error)
-	Close     func(item interface{})
+	Name    string
+	Aliases []string
+	Scope   string
+	Make    func(ctx *Context) (interface{}, error)
+	Close   func(item interface{})
 }
 
 // ContextManager contains the definition of every items.
@@ -187,8 +186,7 @@ func (cm *ContextManager) Context(scope string) (*Context, error) {
 		contextManager: cm,
 		parent:         nil,
 		children:       []*Context{},
-		singletons:     map[string]interface{}{},
-		items:          map[interface{}]Maker{},
+		items:          map[string]interface{}{},
 	}
 
 	if scope == ctx.scope {

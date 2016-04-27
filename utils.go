@@ -12,6 +12,7 @@ func stringSliceContains(arr []string, s string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -24,17 +25,5 @@ func fill(src, dest interface{}) (err error) {
 	}()
 
 	reflect.ValueOf(dest).Elem().Set(reflect.ValueOf(src))
-	return
-}
-
-// isHashable checks if an interface can be used as the key of a map.
-func isHashable(item interface{}) (hashable bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			hashable = false
-		}
-	}()
-	hashable = true
-	_ = map[interface{}]interface{}{item: item}
 	return
 }

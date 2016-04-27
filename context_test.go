@@ -165,13 +165,11 @@ func TestMakerSafeMake(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, &mockItem{}, item.(*mockItem))
 
-	// should retrieve a different item every time, it is not a singleton
-	item.(*mockItem).Closed = true
-
+	// should retrieve the same item every time
 	item2, err = request.SafeMake("item")
 	assert.Nil(t, err)
 	assert.Equal(t, &mockItem{}, item2.(*mockItem))
-	assert.True(t, item != item2)
+	assert.True(t, item == item2)
 
 	// should work with an alias
 	item, err = request.SafeMake("i")
@@ -182,6 +180,7 @@ func TestMakerSafeMake(t *testing.T) {
 	item, err = subrequest.SafeMake("item")
 	assert.Nil(t, err)
 	assert.Equal(t, &mockItem{}, item.(*mockItem))
+	assert.True(t, item == item2)
 }
 
 func TestMakePanic(t *testing.T) {
@@ -203,43 +202,6 @@ func TestMakePanic(t *testing.T) {
 
 	_, err := app.SafeMake("item")
 	assert.NotNil(t, err, "should not panic but not be able to create the item either")
-}
-
-func TestSingletonSafeMake(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-
-	cm.Maker(Maker{
-		Name:      "item",
-		Scope:     "request",
-		Singleton: true,
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
-		},
-	})
-
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-	subrequest, _ := request.SubContext("subrequest")
-
-	var item, item2 interface{}
-	var err error
-
-	// should be able to create the item from the request scope
-	item, err = request.SafeMake("item")
-	assert.Nil(t, err)
-	assert.Equal(t, &mockItem{}, item.(*mockItem))
-
-	item.(*mockItem).Closed = true
-
-	// should retrieve the item every time, even with different parameters
-	item2, err = request.SafeMake("item")
-	assert.Nil(t, err)
-	assert.True(t, item == item2)
-
-	// should be able to retrieve the same item from a subcontext
-	item2, err = subrequest.SafeMake("item")
-	assert.Nil(t, err)
-	assert.True(t, item == item2)
 }
 
 func TestNestedDependencies(t *testing.T) {
@@ -305,124 +267,6 @@ func TestFill(t *testing.T) {
 	assert.Equal(t, 10, item)
 }
 
-func TestClose(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "request",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
-		},
-		Close: func(item interface{}) {
-			i := item.(*mockItem)
-			i.Lock()
-			i.Closed = true
-			i.Unlock()
-		},
-	})
-
-	request, _ := cm.Context("request")
-
-	i1 := request.Make("item").(*mockItem)
-	i2 := request.Make("item").(*mockItem)
-
-	assert.False(t, i1.Closed)
-	assert.False(t, i2.Closed)
-
-	request.Close(i1)
-
-	assert.True(t, i1.Closed)
-	assert.False(t, i2.Closed)
-}
-
-func TestCloseFromParent(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "request",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
-		},
-		Close: func(item interface{}) {
-			i := item.(*mockItem)
-			i.Lock()
-			i.Closed = true
-			i.Unlock()
-		},
-	})
-
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-
-	i1 := request.Make("item").(*mockItem)
-	i2 := request.Make("item").(*mockItem)
-
-	assert.False(t, i1.Closed)
-	assert.False(t, i2.Closed)
-
-	app.Close(i1)
-
-	assert.True(t, i1.Closed)
-	assert.False(t, i2.Closed)
-}
-
-func TestCloseFromChild(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "request",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
-		},
-		Close: func(item interface{}) {
-			i := item.(*mockItem)
-			i.Lock()
-			i.Closed = true
-			i.Unlock()
-		},
-	})
-
-	subrequest, _ := cm.Context("subrequest")
-
-	i1 := subrequest.Make("item").(*mockItem)
-	i2 := subrequest.Make("item").(*mockItem)
-
-	assert.False(t, i1.Closed)
-	assert.False(t, i2.Closed)
-
-	subrequest.Close(i1)
-
-	assert.True(t, i1.Closed)
-	assert.False(t, i2.Closed)
-}
-
-func TestClosePanic(t *testing.T) {
-	cm, _ := NewContextManager("app")
-
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "app",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
-		},
-		Close: func(item interface{}) {
-			panic("panic in Close function")
-		},
-	})
-
-	app, _ := cm.Context("app")
-
-	defer func() {
-		assert.Nil(t, recover(), "Close should not panic")
-	}()
-
-	item, _ := app.SafeMake("item")
-	app.Close(item)
-}
-
 func TestDelete(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
 
@@ -468,6 +312,14 @@ func TestDelete(t *testing.T) {
 		},
 	})
 
+	cm.Maker(Maker{
+		Name:  "i4",
+		Scope: "subrequest",
+		Make: func(ctx *Context) (interface{}, error) {
+			return &mockItem{}, nil
+		},
+	})
+
 	app, _ := cm.Context("app")
 	request, _ := app.SubContext("request")
 	subrequest, _ := request.SubContext("subrequest")
@@ -477,6 +329,7 @@ func TestDelete(t *testing.T) {
 	i1 := app.Make("i1").(*mockItem)
 	i2 := request.Make("i2").(*mockItem)
 	i3 := subrequest.Make("i3").(*mockItem)
+	_ = subrequest.Make("i4").(*mockItem)
 
 	request.Delete()
 
@@ -498,69 +351,36 @@ func TestDelete(t *testing.T) {
 
 	_, err = request.SubContext("subrequest")
 	assert.NotNil(t, err, "should not be able to create a subcontext from a closed context")
-}
-
-func TestIfDeleteRemovesSingletonsCorrectly(t *testing.T) {
-	cm, _ := NewContextManager("app", "request")
-
-	cm.Maker(Maker{
-		Name:      "item",
-		Scope:     "app",
-		Singleton: true,
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
-		},
-		Close: func(item interface{}) {
-			item.(*mockItem).Closed = true
-		},
-	})
-
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-
-	item := request.Make("item").(*mockItem)
-
-	assert.Len(t, app.items, 1, "singleton should be saved in app")
-	assert.Len(t, request.items, 0, "singleton should be saved in request")
-
-	request.Delete()
-
-	assert.False(t, item.Closed)
-	assert.Len(t, app.items, 1, "singleton should still exist in app")
 
 	app.Delete()
 
-	assert.True(t, item.Closed)
-	assert.Len(t, app.items, 0, "singleton should not exist in app anymore")
+	assert.True(t, i1.Closed)
 }
 
-func TestIfDeleteRemovesOneShotItemsCorrectly(t *testing.T) {
-	cm, _ := NewContextManager("app", "request")
+func TestClosePanic(t *testing.T) {
+	cm, _ := NewContextManager("app")
 
 	cm.Maker(Maker{
-		Name:      "item",
-		Scope:     "app",
-		Singleton: false,
+		Name:  "item",
+		Scope: "app",
 		Make: func(ctx *Context) (interface{}, error) {
 			return &mockItem{}, nil
 		},
 		Close: func(item interface{}) {
-			item.(*mockItem).Closed = true
+			panic("panic in Close function")
 		},
 	})
 
 	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
 
-	item := request.Make("item").(*mockItem)
+	defer func() {
+		assert.Nil(t, recover(), "Close should not panic")
+	}()
 
-	assert.Len(t, app.items, 0, "item should not be saved in app")
-	assert.Len(t, request.items, 1, "item should be saved in request")
+	_, err := app.SafeMake("item")
+	assert.Nil(t, err)
 
-	request.Delete()
-
-	assert.True(t, item.Closed)
-	assert.Len(t, request.items, 0, "item should not exist in request anymore")
+	app.Delete()
 }
 
 func TestRace(t *testing.T) {
@@ -569,21 +389,6 @@ func TestRace(t *testing.T) {
 	cm.Instance(Instance{
 		Name: "instance",
 		Item: &mockItem{},
-	})
-
-	cm.Maker(Maker{
-		Name:      "singleton",
-		Scope:     "app",
-		Singleton: true,
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
-		},
-		Close: func(item interface{}) {
-			i := item.(*mockItem)
-			i.Lock()
-			i.Closed = true
-			i.Unlock()
-		},
 	})
 
 	cm.Maker(Maker{
@@ -621,7 +426,6 @@ func TestRace(t *testing.T) {
 			request, _ := app.SubContext("request")
 			defer request.Delete()
 
-			request.Make("singleton")
 			request.Make("item")
 			request.Make("instance")
 			request.Make("nested")
@@ -630,38 +434,17 @@ func TestRace(t *testing.T) {
 				subrequest, _ := app.SubContext("subrequest")
 				defer subrequest.Delete()
 
-				subrequest.Make("singleton")
 				subrequest.Make("item")
 				subrequest.Make("instance")
 				subrequest.Make("nested")
-				subrequest.Make("singleton")
 				subrequest.Make("item")
 				subrequest.Make("instance")
 				subrequest.Make("nested")
 			}()
 
-			request.Make("singleton")
 			request.Make("item")
 			request.Make("instance")
 			request.Make("nested")
 		}()
 	}
-}
-
-func TestUnhashableItem(t *testing.T) {
-	cm, _ := NewContextManager("app")
-
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "app",
-		Make: func(ctx *Context) (interface{}, error) {
-			return map[string]string{}, nil
-		},
-	})
-
-	app, _ := cm.Context("app")
-
-	m, ok := app.Make("item").(map[string]string)
-	assert.True(t, ok)
-	assert.NotNil(t, m)
 }

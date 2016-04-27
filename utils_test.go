@@ -22,11 +22,3 @@ func TestFillUtil(t *testing.T) {
 	err = fill(100, i)
 	assert.NotNil(t, err)
 }
-
-func TestIsHashable(t *testing.T) {
-	assert.True(t, isHashable("string"))
-	assert.True(t, isHashable(33))
-	assert.True(t, isHashable(struct{}{}))
-	assert.False(t, isHashable([]interface{}{}))
-	assert.False(t, isHashable(map[interface{}]interface{}{}))
-}

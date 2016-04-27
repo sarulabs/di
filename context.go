@@ -13,8 +13,7 @@ type Context struct {
 	contextManager *ContextManager
 	parent         *Context
 	children       []*Context
-	singletons     map[string]interface{}
-	items          map[interface{}]Maker
+	items          map[string]interface{}
 }
 
 // Scope returns the name of the context scope.
@@ -102,8 +101,7 @@ func (ctx *Context) subContext(scope string, subscopes []string) (*Context, erro
 		contextManager: ctx.contextManager,
 		parent:         ctx,
 		children:       []*Context{},
-		singletons:     map[string]interface{}{},
-		items:          map[interface{}]Maker{},
+		items:          map[string]interface{}{},
 	}
 
 	ctx.children = append(ctx.children, child)
@@ -153,15 +151,13 @@ func (ctx *Context) SafeMake(name string) (interface{}, error) {
 }
 
 func (ctx *Context) makeInThisContext(maker Maker) (interface{}, error) {
-	// if it's a singleton, try to reuse an already made item
-	if maker.Singleton {
-		ctx.m.Lock()
-		item, ok := ctx.singletons[maker.Name]
-		ctx.m.Unlock()
+	// try to reuse an already made item
+	ctx.m.Lock()
+	item, ok := ctx.items[maker.Name]
+	ctx.m.Unlock()
 
-		if ok {
-			return item, nil
-		}
+	if ok {
+		return item, nil
 	}
 
 	// the item has not been made yet, so create it
@@ -170,29 +166,20 @@ func (ctx *Context) makeInThisContext(maker Maker) (interface{}, error) {
 		return nil, err
 	}
 
+	// ensure the Context is not closed before adding the item
 	ctx.m.Lock()
 	defer ctx.m.Unlock()
 
-	// ensure the Context is not closed before adding anything to it
 	if ctx.contextManager == nil {
 		return nil, errors.New("context has been deleted")
 	}
 
-	// if it is a singleton, save it to reuse it later on
-	if maker.Singleton {
-		ctx.singletons[maker.Name] = item
-	}
-
-	// save the item so you can close it later on
-	// close does not work with items that are not hashable
-	if isHashable(item) {
-		ctx.items[item] = maker
-	}
+	ctx.items[maker.Name] = item
 
 	return item, nil
 }
 
-func (ctx *Context) makeInParent(maker Maker, params ...interface{}) (interface{}, error) {
+func (ctx *Context) makeInParent(maker Maker) (interface{}, error) {
 	parent := ctx.ParentWithScope(maker.Scope)
 	if parent == nil {
 		return nil, fmt.Errorf(
@@ -202,36 +189,7 @@ func (ctx *Context) makeInParent(maker Maker, params ...interface{}) (interface{
 		)
 	}
 
-	item, err := parent.makeInThisContext(maker)
-	if err != nil {
-		return item, err
-	}
-
-	ctx.m.Lock()
-	defer ctx.m.Unlock()
-
-	if ctx.contextManager == nil {
-		// the item was created and saved in the parent Context, but this Context was closed in the meantime
-		// close the item and remove the reference from the parent
-		parent.m.Lock()
-		parent.closeItem(maker, item)
-		delete(parent.items, item)
-		parent.m.Unlock()
-
-		return nil, errors.New("context has been deleted")
-	}
-
-	// if the item is not a singleton, the item should be saved in this Context and not in the parent
-	// that is because you want the item to be close as soon as this Context is deleted
-	if !maker.Singleton {
-		parent.m.Lock()
-		delete(parent.items, item)
-		parent.m.Unlock()
-
-		ctx.items[item] = maker
-	}
-
-	return item, nil
+	return parent.makeInThisContext(maker)
 }
 
 func (ctx *Context) makeItem(maker Maker) (item interface{}, err error) {
@@ -261,64 +219,6 @@ func (ctx *Context) Fill(name string, item interface{}) error {
 	return fill(i, item)
 }
 
-// Close apply the Close method defined in a Maker
-// on an item build with the Make method of the Maker
-// and retrived with the Make method of this Context.
-func (ctx *Context) Close(item interface{}) {
-	ctx.close(item, true, true)
-}
-
-func (ctx *Context) close(item interface{}, closeParent, closeChildren bool) bool {
-	// try to find the item in the context
-	ctx.m.Lock()
-	maker, ok := ctx.items[item]
-	ctx.m.Unlock()
-
-	if ok && maker.Close != nil {
-		ctx.closeItem(maker, item)
-
-		ctx.m.Lock()
-		delete(ctx.items, item)
-		ctx.m.Unlock()
-
-		return true
-	}
-
-	// the item was not in this context, try to find it in its children
-	if closeChildren {
-		ctx.m.Lock()
-
-		children := make([]*Context, len(ctx.children))
-		copy(children, ctx.children)
-
-		ctx.m.Unlock()
-
-		for _, child := range children {
-			if child.close(item, false, true) {
-				return true
-			}
-		}
-	}
-
-	// the item was not in the children, try to remove it from the parent.
-	parent := ctx.Parent()
-
-	if closeParent && parent != nil {
-		return parent.close(item, true, false)
-	}
-
-	return false
-}
-
-func (ctx *Context) closeItem(maker Maker, item interface{}) {
-	defer func() {
-		recover()
-	}()
-
-	maker.Close(item)
-	return
-}
-
 // Delete removes all the references to the items that has been made by this context.
 // Before removing the references, it calls the Close method on these items.
 // It will also call Delete on every child
@@ -326,15 +226,26 @@ func (ctx *Context) closeItem(maker Maker, item interface{}) {
 func (ctx *Context) Delete() {
 	ctx.m.Lock()
 
+	// check if already deleted
+	if ctx.contextManager == nil {
+		ctx.m.Unlock()
+		return
+	}
+
 	// copy children, parent and items so they can be removed outside of the locked area
 	children := make([]*Context, len(ctx.children))
 	copy(children, ctx.children)
 
 	parent := ctx.parent
 
-	items := map[interface{}]Maker{}
-	for item, maker := range ctx.items {
-		items[item] = maker
+	items := map[string]interface{}{}
+	makers := map[string]Maker{}
+
+	for name, item := range ctx.items {
+		items[name] = item
+		if maker, ok := ctx.contextManager.makers[name]; ok {
+			makers[name] = maker
+		}
 	}
 
 	// remove contextManager to mark this Context as closed
@@ -360,15 +271,25 @@ func (ctx *Context) Delete() {
 	}
 
 	// close items
-	for item := range items {
-		ctx.Close(item)
+	for name, item := range items {
+		if maker, ok := makers[name]; ok {
+			ctx.close(maker, item)
+		}
 	}
 
 	// remove references
 	ctx.m.Lock()
 	ctx.parent = nil
 	ctx.children = nil
-	ctx.singletons = nil
 	ctx.items = nil
 	ctx.m.Unlock()
+}
+
+func (ctx *Context) close(maker Maker, item interface{}) {
+	defer func() {
+		recover()
+	}()
+
+	maker.Close(item)
+	return
 }
