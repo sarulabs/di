@@ -214,7 +214,11 @@ func (ctx *Context) makeItem(maker Maker) (item interface{}, err error) {
 // Make creates a new item.
 // If the item can't be created, it returns nil.
 func (ctx *Context) Make(name string) interface{} {
-	item, _ := ctx.SafeMake(name)
+	item, err := ctx.SafeMake(name)
+	if err != nil {
+		return nil
+	}
+
 	return item
 }
 
