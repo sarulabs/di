@@ -98,7 +98,7 @@ func TestSubContextCreation(t *testing.T) {
 	assert.True(t, subrequest != subrequest2, "should not create the same subrequest twice")
 }
 
-func TestInstanceSafeMake(t *testing.T) {
+func TestInstanceSafeGet(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
 
 	one := &mockItem{}
@@ -110,21 +110,21 @@ func TestInstanceSafeMake(t *testing.T) {
 	app, _ := cm.Context("app")
 	request, _ := cm.Context("request")
 
-	_, err := app.SafeMake("undefined")
+	_, err := app.SafeGet("undefined")
 	assert.NotNil(t, err, "should not be able to create an undefined instance")
 
-	// SafeMake should work from tha app Context
-	item1, err := app.SafeMake("i1")
+	// SafeGet should work from tha app Context
+	item1, err := app.SafeGet("i1")
 	assert.Nil(t, err)
 	assert.True(t, one == item1.(*mockItem))
 
-	// SafeMake should also work from the request Context and with an alias
-	item2, err := request.SafeMake("a2")
+	// SafeGet should also work from the request Context and with an alias
+	item2, err := request.SafeGet("a2")
 	assert.Nil(t, err)
 	assert.True(t, two == item2.(*mockItem))
 }
 
-func TestMakerSafeMake(t *testing.T) {
+func TestMakerSafeGet(t *testing.T) {
 	cm, _ := NewContextManager("app", "request", "subrequest")
 
 	cm.Maker(Maker{
@@ -151,33 +151,33 @@ func TestMakerSafeMake(t *testing.T) {
 	var item, item2 interface{}
 	var err error
 
-	_, err = app.SafeMake("item")
+	_, err = app.SafeGet("item")
 	assert.NotNil(t, err, "should not be able to create the item from the app scope")
 
-	_, err = request.SafeMake("undefined")
+	_, err = request.SafeGet("undefined")
 	assert.NotNil(t, err, "should not be able to create an undefined item")
 
-	_, err = request.SafeMake("unmakable")
+	_, err = request.SafeGet("unmakable")
 	assert.NotNil(t, err, "should not be able to create an item if there is an error in the Make function")
 
 	// should be able to create the item from the request scope
-	item, err = request.SafeMake("item")
+	item, err = request.SafeGet("item")
 	assert.Nil(t, err)
 	assert.Equal(t, &mockItem{}, item.(*mockItem))
 
 	// should retrieve the same item every time
-	item2, err = request.SafeMake("item")
+	item2, err = request.SafeGet("item")
 	assert.Nil(t, err)
 	assert.Equal(t, &mockItem{}, item2.(*mockItem))
 	assert.True(t, item == item2)
 
 	// should work with an alias
-	item, err = request.SafeMake("i")
+	item, err = request.SafeGet("i")
 	assert.Nil(t, err)
 	assert.Equal(t, &mockItem{}, item.(*mockItem))
 
 	// should be able to create an item from a subcontext
-	item, err = subrequest.SafeMake("item")
+	item, err = subrequest.SafeGet("item")
 	assert.Nil(t, err)
 	assert.Equal(t, &mockItem{}, item.(*mockItem))
 	assert.True(t, item == item2)
@@ -197,10 +197,10 @@ func TestMakePanic(t *testing.T) {
 	app, _ := cm.Context("app")
 
 	defer func() {
-		assert.Nil(t, recover(), "SafeMake should not panic")
+		assert.Nil(t, recover(), "SafeGet should not panic")
 	}()
 
-	_, err := app.SafeMake("item")
+	_, err := app.SafeGet("item")
 	assert.NotNil(t, err, "should not panic but not be able to create the item either")
 }
 
@@ -215,13 +215,13 @@ func TestNestedDependencies(t *testing.T) {
 		Name:  "requestItem",
 		Scope: "request",
 		Make: func(ctx *Context) (interface{}, error) {
-			return &nestedMockItem{ctx.Make("appItem").(*mockItem)}, nil
+			return &nestedMockItem{ctx.Get("appItem").(*mockItem)}, nil
 		},
 	})
 
 	request, _ := cm.Context("request")
 
-	nestedItem := request.Make("requestItem").(*nestedMockItem)
+	nestedItem := request.Get("requestItem").(*nestedMockItem)
 	assert.True(t, appItem == nestedItem.Item)
 }
 
@@ -238,7 +238,7 @@ func TestMake(t *testing.T) {
 
 	request, _ := cm.Context("request")
 
-	item := request.Make("item").(int)
+	item := request.Get("item").(int)
 	assert.Equal(t, 10, item)
 }
 
@@ -326,10 +326,10 @@ func TestDelete(t *testing.T) {
 
 	var err error
 
-	i1 := app.Make("i1").(*mockItem)
-	i2 := request.Make("i2").(*mockItem)
-	i3 := subrequest.Make("i3").(*mockItem)
-	_ = subrequest.Make("i4").(*mockItem)
+	i1 := app.Get("i1").(*mockItem)
+	i2 := request.Get("i2").(*mockItem)
+	i3 := subrequest.Get("i3").(*mockItem)
+	_ = subrequest.Get("i4").(*mockItem)
 
 	request.Delete()
 
@@ -340,13 +340,13 @@ func TestDelete(t *testing.T) {
 	assert.Nil(t, request.Parent(), "should have removed request parent")
 	assert.Nil(t, subrequest.Parent(), "should have removed subrequest parent")
 
-	_, err = app.SafeMake("i1")
+	_, err = app.SafeGet("i1")
 	assert.Nil(t, err, "should still be able to create item from the app context")
 
-	_, err = request.SafeMake("i2")
+	_, err = request.SafeGet("i2")
 	assert.NotNil(t, err, "should not be able to create item from the closed request context")
 
-	_, err = subrequest.SafeMake("i3")
+	_, err = subrequest.SafeGet("i3")
 	assert.NotNil(t, err, "should not be able to create item from the closed subrequest context")
 
 	_, err = request.SubContext("subrequest")
@@ -377,7 +377,7 @@ func TestClosePanic(t *testing.T) {
 		assert.Nil(t, recover(), "Close should not panic")
 	}()
 
-	_, err := app.SafeMake("item")
+	_, err := app.SafeGet("item")
 	assert.Nil(t, err)
 
 	app.Delete()
@@ -406,7 +406,7 @@ func TestRace(t *testing.T) {
 		Name:  "nested",
 		Scope: "request",
 		Make: func(ctx *Context) (interface{}, error) {
-			return &nestedMockItem{ctx.Make("item").(*mockItem)}, nil
+			return &nestedMockItem{ctx.Get("item").(*mockItem)}, nil
 		},
 		Close: func(item interface{}) {
 			i := item.(*nestedMockItem)
@@ -423,25 +423,25 @@ func TestRace(t *testing.T) {
 			request, _ := app.SubContext("request")
 			defer request.Delete()
 
-			request.Make("item")
-			request.Make("instance")
-			request.Make("nested")
+			request.Get("item")
+			request.Get("instance")
+			request.Get("nested")
 
 			go func() {
 				subrequest, _ := app.SubContext("subrequest")
 				defer subrequest.Delete()
 
-				subrequest.Make("item")
-				subrequest.Make("instance")
-				subrequest.Make("nested")
-				subrequest.Make("item")
-				subrequest.Make("instance")
-				subrequest.Make("nested")
+				subrequest.Get("item")
+				subrequest.Get("instance")
+				subrequest.Get("nested")
+				subrequest.Get("item")
+				subrequest.Get("instance")
+				subrequest.Get("nested")
 			}()
 
-			request.Make("item")
-			request.Make("instance")
-			request.Make("nested")
+			request.Get("item")
+			request.Get("instance")
+			request.Get("nested")
 		}()
 	}
 }

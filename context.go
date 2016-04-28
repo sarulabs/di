@@ -123,9 +123,10 @@ func (ctx *Context) subContext(scope string, subscopes []string) (*Context, erro
 	return child.subContext(scope, subscopes[1:])
 }
 
-// SafeMake creates a new item.
+// SafeGet retrieve an item from the context.
+// If the item does not exist, it is created and saved in the context.
 // If the item can't be created, it returns an error.
-func (ctx *Context) SafeMake(name string) (interface{}, error) {
+func (ctx *Context) SafeGet(name string) (interface{}, error) {
 	manager := ctx.ContextManager()
 	if manager == nil {
 		return nil, errors.New("context has been deleted")
@@ -211,20 +212,17 @@ func (ctx *Context) makeItem(maker Maker) (item interface{}, err error) {
 	return
 }
 
-// Make creates a new item.
-// If the item can't be created, it returns nil.
-func (ctx *Context) Make(name string) interface{} {
-	item, err := ctx.SafeMake(name)
-	if err != nil {
-		return nil
-	}
-
+// Get is similar to SafeGet but it does not return the error.
+func (ctx *Context) Get(name string) interface{} {
+	item, _ := ctx.SafeGet(name)
 	return item
 }
 
-// Fill creates a new item and copies it in a given pointer.
+// Fill is similar to SafeMake but it does not return the item.
+// Instead it fills the provided item with the value returned by SafeGet.
+// The provided item must be a pointer to the value returned by SafeGet.
 func (ctx *Context) Fill(name string, item interface{}) error {
-	i, err := ctx.SafeMake(name)
+	i, err := ctx.SafeGet(name)
 	if err != nil {
 		return err
 	}
