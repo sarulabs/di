@@ -72,12 +72,15 @@ func (cm *ContextManager) ResolveName(name string) (string, error) {
 	if n, ok := cm.aliases[name]; ok {
 		return n, nil
 	}
+
 	if _, ok := cm.instances[name]; ok {
 		return name, nil
 	}
+
 	if _, ok := cm.makers[name]; ok {
 		return name, nil
 	}
+
 	return "", fmt.Errorf("could not resolve name `%s`", name)
 }
 
@@ -93,12 +96,15 @@ func (cm *ContextManager) checkAliases(name string, aliases []string) error {
 		if alias == "" {
 			return errors.New("alias can't be empty")
 		}
+
 		if cm.NameIsUsed(alias) {
 			return fmt.Errorf("alias `%s` is already used", alias)
 		}
+
 		if alias == name {
 			return errors.New("one of the aliases is the same as the real name")
 		}
+
 		for j := i + 1; j < len(aliases); j++ {
 			if aliases[j] == alias {
 				return fmt.Errorf("there are two aliases named `%s`", alias)

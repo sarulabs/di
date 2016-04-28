@@ -21,27 +21,35 @@ func (ctx *Context) Scope() string {
 	return ctx.scope
 }
 
-// ParentScopes returns the list of this context parent scopes.
+// ParentScopes returns the list of the context parent scopes.
 func (ctx *Context) ParentScopes() []string {
-	if manager := ctx.ContextManager(); manager != nil {
-		for i, s := range manager.scopes {
-			if s == ctx.scope {
-				return manager.scopes[:i]
-			}
+	manager := ctx.ContextManager()
+	if manager == nil {
+		return []string{}
+	}
+
+	for i, s := range manager.scopes {
+		if s == ctx.scope {
+			return manager.scopes[:i]
 		}
 	}
+
 	return []string{}
 }
 
-// SubScopes returns the list of this context subscopes.
+// SubScopes returns the list of the context subscopes.
 func (ctx *Context) SubScopes() []string {
-	if manager := ctx.ContextManager(); manager != nil {
-		for i, s := range manager.scopes {
-			if s == ctx.scope {
-				return manager.scopes[i+1:]
-			}
+	manager := ctx.ContextManager()
+	if manager == nil {
+		return []string{}
+	}
+
+	for i, s := range manager.scopes {
+		if s == ctx.scope {
+			return manager.scopes[i+1:]
 		}
 	}
+
 	return []string{}
 }
 
@@ -216,6 +224,7 @@ func (ctx *Context) Fill(name string, item interface{}) error {
 	if err != nil {
 		return err
 	}
+
 	return fill(i, item)
 }
 
