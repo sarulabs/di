@@ -5,45 +5,48 @@ import (
 	"fmt"
 )
 
-// Instance is used to register a prebuilt item in a ContextManager.
-type Instance struct {
-	Name    string
-	Aliases []string
-	Item    interface{}
+// Definition contains information to build and close an object inside a Context.
+type Definition struct {
+	Name  string
+	Scope string
+	Build func(ctx *Context) (interface{}, error)
+	Close func(obj interface{})
 }
 
-// Maker is used to define how to build and close an item in a ContextManager.
-type Maker struct {
-	Name    string
-	Aliases []string
-	Scope   string
-	Make    func(ctx *Context) (interface{}, error)
-	Close   func(item interface{})
+// App is the name of the application scope.
+const App = "app"
+
+// Request is the name of the request scope.
+const Request = "request"
+
+// SubRequest is the name of the subrequest scope.
+const SubRequest = "subrequest"
+
+// Builder is the only way to create a working Context.
+// The scopes and object definitions are set in the Builder
+// that can create a Context based on these information.
+type Builder struct {
+	definitions map[string]Definition
+	scopes      []string
 }
 
-// ContextManager contains the definition of every items.
-// You must use the NewContextManager function to create a ContextManager.
-type ContextManager struct {
-	frozen    bool
-	aliases   map[string]string
-	instances map[string]interface{}
-	makers    map[string]Maker
-	scopes    []string
-}
+// NewBuilder is the only way to create a working Builder.
+// It initializes the Builder with a list of scopes.
+// The scope are ordered from the wider to the narrower.
+// If no scope is provided, the default scopes are used :
+// [App, Request, SubRequest]
+func NewBuilder(scopes ...string) (*Builder, error) {
+	if len(scopes) == 0 {
+		scopes = []string{App, Request, SubRequest}
+	}
 
-// NewContextManager creates a new ContextManager initialized with a list of scopes.
-// If a > b then scope[a] is a sub-scope of scope[b].
-// For example if scopes are ["app", "request"], then "request" is a sub-scope of "app".
-func NewContextManager(scopes ...string) (*ContextManager, error) {
 	if err := checkScopes(scopes); err != nil {
 		return nil, err
 	}
 
-	return &ContextManager{
-		aliases:   map[string]string{},
-		instances: map[string]interface{}{},
-		makers:    map[string]Maker{},
-		scopes:    scopes,
+	return &Builder{
+		definitions: map[string]Definition{},
+		scopes:      scopes,
 	}, nil
 }
 
@@ -66,146 +69,72 @@ func checkScopes(scopes []string) error {
 	return nil
 }
 
-// ResolveName returns the real name of an entry by fowling aliases.
-// If the name is not used, it returns an empty string and an error.
-func (cm *ContextManager) ResolveName(name string) (string, error) {
-	if n, ok := cm.aliases[name]; ok {
-		return n, nil
-	}
-
-	if _, ok := cm.instances[name]; ok {
-		return name, nil
-	}
-
-	if _, ok := cm.makers[name]; ok {
-		return name, nil
-	}
-
-	return "", fmt.Errorf("could not resolve name `%s`", name)
+// Scopes returns the list of available scopes.
+func (b *Builder) Scopes() []string {
+	scopes := make([]string, len(b.scopes))
+	copy(scopes, b.scopes)
+	return scopes
 }
 
-// NameIsUsed returns true if the name is already used in the ContextManager.
-// It can be used as an Instance name, a Maker name, or as an alias.
-func (cm *ContextManager) NameIsUsed(name string) bool {
-	_, err := cm.ResolveName(name)
-	return err == nil
+// IsDefined returns true if there is already a definition with the given name.
+func (b *Builder) IsDefined(name string) bool {
+	_, ok := b.definitions[name]
+	return ok
 }
 
-func (cm *ContextManager) checkAliases(name string, aliases []string) error {
-	for i, alias := range aliases {
-		if alias == "" {
-			return errors.New("alias can't be empty")
-		}
-
-		if cm.NameIsUsed(alias) {
-			return fmt.Errorf("alias `%s` is already used", alias)
-		}
-
-		if alias == name {
-			return errors.New("one of the aliases is the same as the real name")
-		}
-
-		for j := i + 1; j < len(aliases); j++ {
-			if aliases[j] == alias {
-				return fmt.Errorf("there are two aliases named `%s`", alias)
-			}
-		}
-	}
-
-	return nil
-}
-
-// Maker adds a Maker to the ContextManager.
-// It returns an error if the Maker is not well defined.
-func (cm *ContextManager) Maker(maker Maker) error {
-	if cm.frozen {
-		return errors.New("the ContextManager is frozen because a Context has already been created")
-	}
-
-	// check if scope exists
-	if !stringSliceContains(cm.scopes, maker.Scope) {
-		return fmt.Errorf("scope `%s` is not defined", maker.Scope)
-	}
-
-	// check if name is valid and available
-	if maker.Name == "" {
-		return errors.New("Maker name can't be empty")
-	}
-	if cm.NameIsUsed(maker.Name) {
-		return fmt.Errorf("name `%s` is already used", maker.Name)
-	}
-
-	// check if aliases are valid
-	if err := cm.checkAliases(maker.Name, maker.Aliases); err != nil {
+// AddDefinition adds an object Definition in the Builder.
+// It returns an error if the Definition can't be added.
+func (b *Builder) AddDefinition(def Definition) error {
+	if err := b.checkName(def.Name); err != nil {
 		return err
 	}
 
-	// everything is ok, add the maker
-	cm.makers[maker.Name] = maker
+	if !stringSliceContains(b.scopes, def.Scope) {
+		return fmt.Errorf("scope `%s` is not defined", def.Scope)
+	}
 
-	for _, alias := range maker.Aliases {
-		cm.aliases[alias] = maker.Name
+	if def.Build == nil {
+		return errors.New("Build can't be nil")
+	}
+
+	b.definitions[def.Name] = def
+
+	return nil
+}
+
+func (b *Builder) checkName(name string) error {
+	if name == "" {
+		return errors.New("name can't be empty")
+	}
+
+	if b.IsDefined(name) {
+		return fmt.Errorf("name `%s` is already used", name)
 	}
 
 	return nil
 }
 
-// Instance adds an Instance to the ContextManager.
-// It returns an error if the name or the aliases are already used.
-func (cm *ContextManager) Instance(instance Instance) error {
-	if cm.frozen {
-		return errors.New("the ContextManager is frozen because a Context has already been created")
-	}
-
-	// check if name is valid and available
-	if instance.Name == "" {
-		return errors.New("Instance name can't be empty")
-	}
-	if cm.NameIsUsed(instance.Name) {
-		return fmt.Errorf("name `%s` is already used", instance.Name)
-	}
-
-	// check if aliases are valid
-	if err := cm.checkAliases(instance.Name, instance.Aliases); err != nil {
-		return err
-	}
-
-	// everything is ok, add the instance
-	cm.instances[instance.Name] = instance.Item
-
-	for _, alias := range instance.Aliases {
-		cm.aliases[alias] = instance.Name
-	}
-
-	return nil
-}
-
-// Set is a shortcut to add an Instance without any alias.
-func (cm *ContextManager) Set(name string, item interface{}) error {
-	return cm.Instance(Instance{
-		Name: name,
-		Item: item,
+// Set adds a definition for an already build object.
+// The scope used as the Definition scope is the Builder wider scope.
+func (b *Builder) Set(name string, obj interface{}) error {
+	return b.AddDefinition(Definition{
+		Name:  name,
+		Scope: b.scopes[0],
+		Build: func(ctx *Context) (interface{}, error) {
+			return obj, nil
+		},
 	})
 }
 
-// Context returns a context for the desired scope.
-// You can ask for any scope, not only the first one.
-// But if you have two scopes ["app", "request"] and you ask
-// for a "request" Context twice, it will create two different "app" Context.
-func (cm *ContextManager) Context(scope string) (*Context, error) {
-	cm.frozen = true
-
-	ctx := &Context{
-		scope:          cm.scopes[0],
-		contextManager: cm,
-		parent:         nil,
-		children:       []*Context{},
-		items:          map[string]interface{}{},
-	}
-
-	if scope == ctx.scope {
-		return ctx, nil
-	}
-
-	return ctx.SubContext(scope)
+// Build creates a Context in the wider scope
+// with all the current scopes and definitions.
+func (b *Builder) Build() (*Context, error) {
+	return &Context{
+		scopes:      b.scopes,
+		scope:       b.scopes[0],
+		definitions: b.definitions,
+		parent:      nil,
+		children:    []*Context{},
+		objects:     map[string]interface{}{},
+	}, nil
 }

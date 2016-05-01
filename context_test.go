@@ -8,440 +8,432 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockItem struct {
+type mockObject struct {
 	sync.Mutex
 	Closed bool
 }
 
-type nestedMockItem struct {
-	Item *mockItem
+type nestedMockObject struct {
+	Object *mockObject
 }
 
 func TestContextScope(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	subrequest, _ := cm.Context("subrequest")
+	b, _ := NewBuilder()
+	app, _ := b.Build()
+	request, _ := app.SubContext()
+	subrequest, _ := request.SubContext()
 
-	assert.Equal(t, "app", app.Scope())
-	assert.Equal(t, "subrequest", subrequest.Scope())
+	assert.Equal(t, App, app.Scope())
+	assert.Equal(t, Request, request.Scope())
+	assert.Equal(t, SubRequest, subrequest.Scope())
 }
 
 func TestContextParentScopes(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	subrequest, _ := cm.Context("subrequest")
+	b, _ := NewBuilder()
+	app, _ := b.Build()
+	request, _ := app.SubContext()
+	subrequest, _ := request.SubContext()
 
 	assert.Empty(t, app.ParentScopes())
-	assert.Equal(t, []string{"app", "request"}, subrequest.ParentScopes())
+	assert.Equal(t, []string{App}, request.ParentScopes())
+	assert.Equal(t, []string{App, Request}, subrequest.ParentScopes())
 }
 
 func TestContextSubScopes(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	subrequest, _ := cm.Context("subrequest")
+	b, _ := NewBuilder()
+	app, _ := b.Build()
+	request, _ := app.SubContext()
+	subrequest, _ := request.SubContext()
 
-	assert.Equal(t, []string{"request", "subrequest"}, app.SubScopes())
+	assert.Equal(t, []string{Request, SubRequest}, app.SubScopes())
+	assert.Equal(t, []string{SubRequest}, request.SubScopes())
 	assert.Empty(t, subrequest.SubScopes())
 }
 
 func TestContextHasSubScope(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	subrequest, _ := cm.Context("subrequest")
+	b, _ := NewBuilder()
+	app, _ := b.Build()
+	request, _ := app.SubContext()
+	subrequest, _ := request.SubContext()
 
-	assert.False(t, app.HasSubScope("app"))
-	assert.True(t, app.HasSubScope("request"))
-	assert.True(t, app.HasSubScope("subrequest"))
+	assert.False(t, app.HasSubScope(App))
+	assert.True(t, app.HasSubScope(Request))
+	assert.True(t, app.HasSubScope(SubRequest))
 	assert.False(t, app.HasSubScope("other"))
 
-	assert.False(t, subrequest.HasSubScope("app"))
-	assert.False(t, subrequest.HasSubScope("request"))
-	assert.False(t, subrequest.HasSubScope("subrequest"))
+	assert.False(t, subrequest.HasSubScope(App))
+	assert.False(t, subrequest.HasSubScope(Request))
+	assert.False(t, subrequest.HasSubScope(SubRequest))
 	assert.False(t, subrequest.HasSubScope("other"))
 }
 
 func TestContextParentWithScope(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-	subrequest, _ := request.SubContext("subrequest")
+	b, _ := NewBuilder()
+	app, _ := b.Build()
+	request, _ := app.SubContext()
+	subrequest, _ := request.SubContext()
 
-	assert.True(t, app == request.ParentWithScope("app"))
-	assert.True(t, app == subrequest.ParentWithScope("app"))
-	assert.True(t, request == subrequest.ParentWithScope("request"))
+	assert.True(t, app == request.ParentWithScope(App))
+	assert.True(t, app == subrequest.ParentWithScope(App))
+	assert.True(t, request == subrequest.ParentWithScope(Request))
 
 	assert.Nil(t, app.ParentWithScope("undefined"))
-	assert.Nil(t, app.ParentWithScope("request"))
+	assert.Nil(t, app.ParentWithScope(Request))
 }
 
 func TestSubContextCreation(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-	request, _ := cm.Context("request")
-
 	var err error
+	b, _ := NewBuilder()
 
-	_, err = request.SubContext("app")
-	assert.NotNil(t, err, "should not be able to create a subcontext with a parent scope")
+	app, err := b.Build()
+	assert.Nil(t, err)
 
-	_, err = request.SubContext("request")
-	assert.NotNil(t, err, "should not be able to create a subcontext with the same scope")
+	request, err := app.SubContext()
+	assert.Nil(t, err)
 
-	_, err = request.SubContext("undefined")
-	assert.NotNil(t, err, "should not be able to create a subcontext with an undefined scope")
+	subrequest, err := request.SubContext()
+	assert.Nil(t, err)
 
-	subrequest, err := request.SubContext("subrequest")
-	assert.Nil(t, err, "should be able to create a subrequest Context")
-	assert.Equal(t, "subrequest", subrequest.Scope())
-	assert.True(t, request == subrequest.Parent())
-
-	subrequest2, _ := request.SubContext("subrequest")
-	assert.True(t, subrequest != subrequest2, "should not create the same subrequest twice")
+	_, err = subrequest.SubContext()
+	assert.NotNil(t, err, "subrequest does not have any subcontext")
 }
 
-func TestInstanceSafeGet(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
+func TestSafeGet(t *testing.T) {
+	b, _ := NewBuilder()
 
-	one := &mockItem{}
-	two := &mockItem{}
-
-	cm.Instance(Instance{Name: "i1", Aliases: []string{"a1"}, Item: one})
-	cm.Instance(Instance{Name: "i2", Aliases: []string{"a2"}, Item: two})
-
-	app, _ := cm.Context("app")
-	request, _ := cm.Context("request")
-
-	_, err := app.SafeGet("undefined")
-	assert.NotNil(t, err, "should not be able to create an undefined instance")
-
-	// SafeGet should work from tha app Context
-	item1, err := app.SafeGet("i1")
-	assert.Nil(t, err)
-	assert.True(t, one == item1.(*mockItem))
-
-	// SafeGet should also work from the request Context and with an alias
-	item2, err := request.SafeGet("a2")
-	assert.Nil(t, err)
-	assert.True(t, two == item2.(*mockItem))
-}
-
-func TestMakerSafeGet(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
-
-	cm.Maker(Maker{
-		Name:    "item",
-		Aliases: []string{"i"},
-		Scope:   "request",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
+	b.AddDefinition(Definition{
+		Name:  "object",
+		Scope: Request,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &mockObject{}, nil
 		},
 	})
 
-	cm.Maker(Maker{
+	b.AddDefinition(Definition{
 		Name:  "unmakable",
-		Scope: "request",
-		Make: func(ctx *Context) (interface{}, error) {
+		Scope: Request,
+		Build: func(ctx *Context) (interface{}, error) {
 			return nil, errors.New("error")
 		},
 	})
 
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-	subrequest, _ := request.SubContext("subrequest")
+	app, _ := b.Build()
+	request, _ := app.SubContext()
+	subrequest, _ := request.SubContext()
 
-	var item, item2 interface{}
+	var obj, objBis interface{}
 	var err error
 
-	_, err = app.SafeGet("item")
-	assert.NotNil(t, err, "should not be able to create the item from the app scope")
+	_, err = app.SafeGet("object")
+	assert.NotNil(t, err, "should not be able to create the object from the app scope")
 
 	_, err = request.SafeGet("undefined")
-	assert.NotNil(t, err, "should not be able to create an undefined item")
+	assert.NotNil(t, err, "should not be able to create an undefined object")
 
 	_, err = request.SafeGet("unmakable")
-	assert.NotNil(t, err, "should not be able to create an item if there is an error in the Make function")
+	assert.NotNil(t, err, "should not be able to create an object if there is an error in the Build function")
 
 	// should be able to create the item from the request scope
-	item, err = request.SafeGet("item")
+	obj, err = request.SafeGet("object")
 	assert.Nil(t, err)
-	assert.Equal(t, &mockItem{}, item.(*mockItem))
+	assert.Equal(t, &mockObject{}, obj.(*mockObject))
 
 	// should retrieve the same item every time
-	item2, err = request.SafeGet("item")
+	objBis, err = request.SafeGet("object")
 	assert.Nil(t, err)
-	assert.Equal(t, &mockItem{}, item2.(*mockItem))
-	assert.True(t, item == item2)
-
-	// should work with an alias
-	item, err = request.SafeGet("i")
-	assert.Nil(t, err)
-	assert.Equal(t, &mockItem{}, item.(*mockItem))
+	assert.Equal(t, &mockObject{}, objBis.(*mockObject))
+	assert.True(t, obj == objBis)
 
 	// should be able to create an item from a subcontext
-	item, err = subrequest.SafeGet("item")
+	obj, err = subrequest.SafeGet("object")
 	assert.Nil(t, err)
-	assert.Equal(t, &mockItem{}, item.(*mockItem))
-	assert.True(t, item == item2)
+	assert.Equal(t, &mockObject{}, obj.(*mockObject))
+	assert.True(t, obj == objBis)
 }
 
-func TestMakePanic(t *testing.T) {
-	cm, _ := NewContextManager("app")
+func TestBuildPanic(t *testing.T) {
+	b, _ := NewBuilder()
 
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "app",
-		Make: func(ctx *Context) (interface{}, error) {
-			panic("panic in Make function")
+	b.AddDefinition(Definition{
+		Name:  "object",
+		Scope: App,
+		Build: func(ctx *Context) (interface{}, error) {
+			panic("panic in Build function")
 		},
 	})
 
-	app, _ := cm.Context("app")
+	app, _ := b.Build()
 
 	defer func() {
 		assert.Nil(t, recover(), "SafeGet should not panic")
 	}()
 
-	_, err := app.SafeGet("item")
-	assert.NotNil(t, err, "should not panic but not be able to create the item either")
+	_, err := app.SafeGet("object")
+	assert.NotNil(t, err, "should not panic but not be able to create the object either")
 }
 
 func TestNestedDependencies(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
+	b, _ := NewBuilder()
 
-	appItem := &mockItem{}
+	appObject := &mockObject{}
 
-	cm.Set("appItem", appItem)
+	b.Set("appObject", appObject)
 
-	cm.Maker(Maker{
-		Name:  "requestItem",
-		Scope: "request",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &nestedMockItem{ctx.Get("appItem").(*mockItem)}, nil
+	b.AddDefinition(Definition{
+		Name:  "nestedObject",
+		Scope: Request,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &nestedMockObject{
+				ctx.Get("appObject").(*mockObject),
+			}, nil
 		},
 	})
 
-	request, _ := cm.Context("request")
+	app, _ := b.Build()
+	request, _ := app.SubContext()
 
-	nestedItem := request.Get("requestItem").(*nestedMockItem)
-	assert.True(t, appItem == nestedItem.Item)
+	nestedObject := request.Get("nestedObject").(*nestedMockObject)
+	assert.True(t, appObject == nestedObject.Object)
 }
 
-func TestMake(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
+func TestGet(t *testing.T) {
+	b, _ := NewBuilder()
 
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "request",
-		Make: func(ctx *Context) (interface{}, error) {
+	b.AddDefinition(Definition{
+		Name:  "object",
+		Scope: Request,
+		Build: func(ctx *Context) (interface{}, error) {
 			return 10, nil
 		},
 	})
 
-	request, _ := cm.Context("request")
+	app, _ := b.Build()
+	request, _ := app.SubContext()
 
-	item := request.Get("item").(int)
-	assert.Equal(t, 10, item)
+	object := request.Get("object").(int)
+	assert.Equal(t, 10, object)
 }
 
 func TestFill(t *testing.T) {
-	cm, _ := NewContextManager("app")
+	b, _ := NewBuilder()
 
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "app",
-		Make: func(ctx *Context) (interface{}, error) {
+	b.AddDefinition(Definition{
+		Name:  "object",
+		Scope: App,
+		Build: func(ctx *Context) (interface{}, error) {
 			return 10, nil
 		},
 	})
 
-	app, _ := cm.Context("app")
+	app, _ := b.Build()
 
 	var err error
-	var item int
+	var object int
 	var wrongType string
 
-	err = app.Fill("item", &wrongType)
+	err = app.Fill("object", &wrongType)
 	assert.NotNil(t, err, "should have failed to fill an item with the wrong type")
 
-	err = app.Fill("item", &item)
+	err = app.Fill("object", &object)
 	assert.Nil(t, err)
-	assert.Equal(t, 10, item)
+	assert.Equal(t, 10, object)
 }
 
 func TestDelete(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
+	b, _ := NewBuilder()
 
-	cm.Maker(Maker{
-		Name:  "i1",
-		Scope: "app",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
+	b.AddDefinition(Definition{
+		Name:  "obj1",
+		Scope: App,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &mockObject{}, nil
 		},
-		Close: func(item interface{}) {
-			i := item.(*mockItem)
+		Close: func(obj interface{}) {
+			i := obj.(*mockObject)
 			i.Lock()
 			i.Closed = true
 			i.Unlock()
 		},
 	})
 
-	cm.Maker(Maker{
-		Name:  "i2",
-		Scope: "request",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
+	b.AddDefinition(Definition{
+		Name:  "obj2",
+		Scope: Request,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &mockObject{}, nil
 		},
-		Close: func(item interface{}) {
-			i := item.(*mockItem)
+		Close: func(obj interface{}) {
+			i := obj.(*mockObject)
 			i.Lock()
 			i.Closed = true
 			i.Unlock()
 		},
 	})
 
-	cm.Maker(Maker{
-		Name:  "i3",
-		Scope: "subrequest",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
+	b.AddDefinition(Definition{
+		Name:  "obj3",
+		Scope: SubRequest,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &mockObject{}, nil
 		},
-		Close: func(item interface{}) {
-			i := item.(*mockItem)
+		Close: func(obj interface{}) {
+			i := obj.(*mockObject)
 			i.Lock()
 			i.Closed = true
 			i.Unlock()
 		},
 	})
 
-	cm.Maker(Maker{
-		Name:  "i4",
-		Scope: "subrequest",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
+	b.AddDefinition(Definition{
+		Name:  "obj4",
+		Scope: SubRequest,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &mockObject{}, nil
 		},
 	})
 
-	app, _ := cm.Context("app")
-	request, _ := app.SubContext("request")
-	subrequest, _ := request.SubContext("subrequest")
+	app, _ := b.Build()
+	request, _ := app.SubContext()
+	subrequest, _ := request.SubContext()
 
 	var err error
 
-	i1 := app.Get("i1").(*mockItem)
-	i2 := request.Get("i2").(*mockItem)
-	i3 := subrequest.Get("i3").(*mockItem)
-	_ = subrequest.Get("i4").(*mockItem)
+	obj1 := app.Get("obj1").(*mockObject)
+	obj2 := request.Get("obj2").(*mockObject)
+	obj3 := subrequest.Get("obj3").(*mockObject)
+	_ = subrequest.Get("obj4").(*mockObject)
 
 	request.Delete()
 
-	assert.False(t, i1.Closed)
-	assert.True(t, i2.Closed)
-	assert.True(t, i3.Closed)
+	assert.False(t, obj1.Closed)
+	assert.True(t, obj2.Closed)
+	assert.True(t, obj3.Closed)
 
 	assert.Nil(t, request.Parent(), "should have removed request parent")
 	assert.Nil(t, subrequest.Parent(), "should have removed subrequest parent")
 
-	_, err = app.SafeGet("i1")
-	assert.Nil(t, err, "should still be able to create item from the app context")
+	_, err = app.SafeGet("obj1")
+	assert.Nil(t, err, "should still be able to create object from the app context")
 
-	_, err = request.SafeGet("i2")
-	assert.NotNil(t, err, "should not be able to create item from the closed request context")
+	_, err = request.SafeGet("obj2")
+	assert.NotNil(t, err, "should not be able to create object from the closed request context")
 
-	_, err = subrequest.SafeGet("i3")
-	assert.NotNil(t, err, "should not be able to create item from the closed subrequest context")
+	_, err = subrequest.SafeGet("obj3")
+	assert.NotNil(t, err, "should not be able to create object from the closed subrequest context")
 
-	_, err = request.SubContext("subrequest")
+	_, err = request.SubContext()
 	assert.NotNil(t, err, "should not be able to create a subcontext from a closed context")
 
 	app.Delete()
 
-	assert.True(t, i1.Closed)
+	assert.True(t, obj1.Closed)
 }
 
 func TestClosePanic(t *testing.T) {
-	cm, _ := NewContextManager("app")
+	b, _ := NewBuilder()
 
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "app",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
+	b.AddDefinition(Definition{
+		Name:  "object",
+		Scope: App,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &mockObject{}, nil
 		},
-		Close: func(item interface{}) {
+		Close: func(obj interface{}) {
 			panic("panic in Close function")
 		},
 	})
 
-	app, _ := cm.Context("app")
+	app, _ := b.Build()
 
 	defer func() {
 		assert.Nil(t, recover(), "Close should not panic")
 	}()
 
-	_, err := app.SafeGet("item")
+	_, err := app.SafeGet("object")
 	assert.Nil(t, err)
 
 	app.Delete()
 }
 
 func TestRace(t *testing.T) {
-	cm, _ := NewContextManager("app", "request", "subrequest")
+	b, _ := NewBuilder()
 
-	cm.Set("instance", &mockItem{})
+	b.Set("instance", &mockObject{})
 
-	cm.Maker(Maker{
-		Name:  "item",
-		Scope: "app",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &mockItem{}, nil
+	b.AddDefinition(Definition{
+		Name:  "object",
+		Scope: App,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &mockObject{}, nil
 		},
-		Close: func(item interface{}) {
-			i := item.(*mockItem)
+		Close: func(obj interface{}) {
+			i := obj.(*mockObject)
 			i.Lock()
 			i.Closed = true
 			i.Unlock()
 		},
 	})
 
-	cm.Maker(Maker{
+	b.AddDefinition(Definition{
 		Name:  "nested",
-		Scope: "request",
-		Make: func(ctx *Context) (interface{}, error) {
-			return &nestedMockItem{ctx.Get("item").(*mockItem)}, nil
+		Scope: Request,
+		Build: func(ctx *Context) (interface{}, error) {
+			return &nestedMockObject{
+				ctx.Get("object").(*mockObject),
+			}, nil
 		},
-		Close: func(item interface{}) {
-			i := item.(*nestedMockItem)
-			i.Item.Lock()
-			i.Item.Closed = true
-			i.Item.Unlock()
+		Close: func(obj interface{}) {
+			o := obj.(*nestedMockObject)
+			o.Object.Lock()
+			o.Object.Closed = true
+			o.Object.Unlock()
 		},
 	})
 
-	app, _ := cm.Context("app")
+	app, _ := b.Build()
 
-	for i := 0; i < 1000; i++ {
+	cApp := make(chan struct{}, 100)
+
+	for i := 0; i < 100; i++ {
 		go func() {
-			request, _ := app.SubContext("request")
+			request, _ := app.SubContext()
 			defer request.Delete()
 
-			request.Get("item")
 			request.Get("instance")
+			request.Get("object")
 			request.Get("nested")
 
-			go func() {
-				subrequest, _ := app.SubContext("subrequest")
-				defer subrequest.Delete()
+			cReq := make(chan struct{}, 10)
 
-				subrequest.Get("item")
-				subrequest.Get("instance")
-				subrequest.Get("nested")
-				subrequest.Get("item")
-				subrequest.Get("instance")
-				subrequest.Get("nested")
-			}()
+			for j := 0; j < 10; j++ {
+				go func() {
+					subrequest, _ := request.SubContext()
+					defer subrequest.Delete()
 
-			request.Get("item")
+					subrequest.Get("instance")
+					subrequest.Get("object")
+					subrequest.Get("nested")
+					subrequest.Get("instance")
+					subrequest.Get("object")
+					subrequest.Get("nested")
+
+					cReq <- struct{}{}
+				}()
+			}
+
+			for j := 0; j < 10; j++ {
+				<-cReq
+			}
+
 			request.Get("instance")
+			request.Get("object")
 			request.Get("nested")
+
+			cApp <- struct{}{}
 		}()
+	}
+
+	for j := 0; j < 100; j++ {
+		<-cApp
 	}
 }
