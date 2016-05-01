@@ -21,6 +21,28 @@ func TestNewBuilder(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, b.Scopes())
 }
 
+func TestDefinitions(t *testing.T) {
+	b, _ := NewBuilder()
+
+	def1 := Definition{
+		Name:  "o1",
+		Build: func(ctx *Context) (interface{}, error) { return nil, nil },
+	}
+
+	def2 := Definition{
+		Name:  "o2",
+		Build: func(ctx *Context) (interface{}, error) { return nil, nil },
+	}
+
+	b.AddDefinition(def1)
+	b.AddDefinition(def2)
+	defs := b.Definitions()
+
+	assert.Len(t, defs, 2)
+	assert.Equal(t, "o1", defs["o1"].Name)
+	assert.Equal(t, "o2", defs["o2"].Name)
+}
+
 func TestIsDefined(t *testing.T) {
 	b, _ := NewBuilder()
 
@@ -79,7 +101,25 @@ func TestSet(t *testing.T) {
 func TestBuild(t *testing.T) {
 	b, _ := NewBuilder()
 
+	buildFn := func(ctx *Context) (interface{}, error) { return nil, nil }
+
+	def1 := Definition{
+		Name:  "o1",
+		Build: buildFn,
+	}
+
+	def2 := Definition{
+		Name:  "o2",
+		Scope: Request,
+		Build: buildFn,
+	}
+
+	b.AddDefinition(def1)
+	b.AddDefinition(def2)
+
 	app, err := b.Build()
 	assert.Nil(t, err)
 	assert.Equal(t, App, app.Scope())
+	assert.Len(t, app.definitions, 2)
+	assert.Equal(t, App, app.definitions["o1"].Scope)
 }

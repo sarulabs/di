@@ -76,6 +76,18 @@ func (b *Builder) Scopes() []string {
 	return scopes
 }
 
+// Definitions returs a map with the objects definitions added with the AddDefinition method.
+// The key of the map is the name of the Definition.
+func (b *Builder) Definitions() map[string]Definition {
+	defs := map[string]Definition{}
+
+	for name, def := range b.definitions {
+		defs[name] = def
+	}
+
+	return defs
+}
+
 // IsDefined returns true if there is already a definition with the given name.
 func (b *Builder) IsDefined(name string) bool {
 	_, ok := b.definitions[name]
@@ -89,7 +101,7 @@ func (b *Builder) AddDefinition(def Definition) error {
 		return err
 	}
 
-	if !stringSliceContains(b.scopes, def.Scope) {
+	if def.Scope != "" && !stringSliceContains(b.scopes, def.Scope) {
 		return fmt.Errorf("scope `%s` is not defined", def.Scope)
 	}
 
@@ -129,10 +141,19 @@ func (b *Builder) Set(name string, obj interface{}) error {
 // Build creates a Context in the wider scope
 // with all the current scopes and definitions.
 func (b *Builder) Build() (*Context, error) {
+	defs := b.Definitions()
+
+	for name, def := range defs {
+		if def.Scope == "" {
+			def.Scope = b.scopes[0]
+			defs[name] = def
+		}
+	}
+
 	return &Context{
 		scopes:      b.scopes,
 		scope:       b.scopes[0],
-		definitions: b.definitions,
+		definitions: defs,
 		parent:      nil,
 		children:    []*Context{},
 		objects:     map[string]interface{}{},
