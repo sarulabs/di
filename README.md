@@ -7,174 +7,226 @@ If you don't know what a dependency injection container is, you may want to read
 http://fabien.potencier.org/do-you-need-a-dependency-injection-container.html
 
 
-## Main components
+## Basic usage
 
-First let's define the main components of this library :
+### Object definition
 
-**Context** : a Context is a dependency injection container. Contexts should be used to retrieve items. They contain all previously built items.
-
-**ContextManager** : a ContextManager contains the definition of the items that can be created.
-
-**Scope** : contexts are not  necessarily independent. For example, a context can be attached to your whole application whereas others can be attached to an http request. In this case `application` and `request` are two scopes. The `request` contexts are sub-contexts of the `application` context. They are isolated at their level but share the same `application` context.
-
-
-## Item definitions
-
-### Instance
-
-Instances are the simplest way to register an item. It works like a map. An Instance has a name (and may have one or more aliases). This name corresponds to an item and will be used to retrieve it later on.
-
-You can register the Instance in a ContextManager :
+A Definition contains at least the `Name` of the object and a `Build` function to create the object.
 
 ```go
-// first we create a ContextManager
-// app is the only scope of this ContextManager
-cm, _ := NewContextManager("app")
-
-// register &MyItem{} under the name item-name
-cm.Instance(di.Instance{
-    Name: "item-name",
-    Aliases: []string{"item-alias"},
-    Item: &MyItem{},
-})
-```
-
-And then you can retrieve it from any Context created with this ContextManager :
-
-```go
-// get an app Context from the ContextManager to retrieve the Instance
-context, _ := cm.Context("app")
-item := context.Make("item-name").(*MyItem)
-```
-
-You will retrieve the exact same item every time you call the `Make` method.
-
-
-## Maker
-
-In an Instance, you directly register an item. In a Maker you define how to build and close an item.
-
-```go
-// we create a ContextManager with two scopes
-// `request` is a sub-scope of `app`
-cm, _ := NewContextManager("app", "request")
-
-cm.Maker(di.Maker{
-    Name: "item-name",
-    Aliases: []string{"item-alias"},
-    Scope: "request",
-    Singleton: false,
-    // define how to make the item
-    Make: func(c *Context, params ...interface{}) (interface{}, error) {
-        return &MyItem{}, nil
+di.Definition{
+    Name: "my-object",
+    Build: func(ctx *di.Context) (interface{}, error) {
+        return &MyObject{}, nil
     },
-    // define how to close it
-    Close: func(item interface{}) {
-        item.(*MyItem).Close()
+}
+```
+
+The definition can be added to a Builder with the `AddDefinition` method :
+
+```go
+builder := di.NewBuilder()
+
+builder.AddDefinition(di.Definition{
+    Name: "my-object",
+    Build: func(ctx *di.Context) (interface{}, error) {
+        return &MyObject{}, nil
     },
 })
-
-context, _ := cm.Context("request")
-item := context.Make("item-name").(*MyItem)
 ```
 
-Makers belong to a scope and can only be created from a context with this scope or a sub-scope. This means an `app` context can not create an item registered in the `request` scope. To get this item you need to create a `request` context from the `app` context.
 
-Makers can be singletons. In this case the `Make` function defined in the Maker will only be called the first time you try to retrieve the item. The created item is then stored in the context and will be returned each time the `Make` method of the context is called.
+### Object retrieval
 
-
-## Create and close items
-
-### Create an item
-
-There are three functions to create an item.
+Once the definitions have been added to a Builder, the Builder can generate a Context that can provide the defined objects.
 
 ```go
-// Make returns an interface that can be cast afterward.
-// If the item can not be made, nil is returned.
-itemInterface := context.Make("my-item")
-item := itemInterface.(*MyItem)
-
-// SafeMake returns an interface, but also an error if something went wrong.
-// It can be used to find why an item could not be made.
-itemInterface, err := context.SafeMake("my-item")
-
-var anotherItem *MyItem
-err = context.Fill(&anotherItem, "my-item")
+ctx, _ := builder.Build()
+obj := ctx.Get("my-object").(*MyObject)
 ```
 
-You can pass parameters to the `Make` function :
+The objects in a Context are singletons. You will retrieve the exact same object every time you call the `Get` method on the same Context. The `Build` function will only be called once.
+
+
+### Nested definition
+
+The `Build` function can also call the `Get` method of the Context. That allows to build objects that depend on other objects defined in the Context.
 
 ```go
-cm, _ := NewContextManager("app", "request")
-
-cm.Maker(di.Maker{
-    Name: "item-name",
-    Scope: "request",
-    Make: func(c *Context, params ...interface{}) (interface{}, error) {
-        if len(params) == 0 {
-          return nil, errors.New("require a parameter")
-        }
-        return &MyItem{params[0].(string)}, nil
+di.Definition{
+    Name: "nested-object",
+    Build: func(ctx *di.Context) (interface{}, error) {
+        return &MyNestedObject{
+            Object: ctx.Get("my-object").(*MyObject),
+        }, nil
     },
-})
-
-context, _ := cm.Context("request")
-item := context.Make("item-name", "my-parameter").(*MyItem)
-```
-
-Be careful with parameters and singletons. The parameters of the first call will be used every time.
-
-
-### Close an item
-
-To close an item you can use the `Close` method :
-
-```go
-item := context.Make("my-item").(*ItemThatMustBeClosed)
-// and then later
-context.Close(item)
-```
-
-But you can also close all the items created with a context by deleting it when you have finished to use it :
-
-```go
-item1 := context.Make("item1").(*ItemThatMustBeClosed)
-item2 := context.Make("item2").(*ItemThatMustBeClosed)
-// and then later
-context.Delete()
-```
-
-Contexts have a reference to all their children, so it's really important to call the `Delete` method once you've finished using a Context to free its memory. That's why almost every time, you won't need to close each item individually. You just have to delete the Context :
-
-```go
-cm, _ := di.NewContextManager("app")
-app, _ := cm.Context("app")
-defer app.Delete()
-// and here you can use the context
+}
 ```
 
 
 ## Scopes
 
-The scopes are defined when the ContextManager is created. Then you can create contexts from this ContextManager.
+Definitions can also have a scope :
 
 ```go
-// subrequest is a sub-scope of request that is a sub-scope of app
-cm, _ := di.NewContextManager("app", "request", "subrequest")
-
-// you can create an app context from the ContextManager
-app, _ := cm.Context("app")
-
-// but you can also directly create a request context.
-// This will create another app context. So request is not a sub-context of the app context above.
-request, _ := cm.Context("request")
-request.Parent() == app // false
-
-// you can create a sub-context from a context
-subrequest, _ := request.SubContext("subrequest")
-subrequest.Parent() == request // true
+di.Definition{
+    Name: "my-object",
+    Scope: di.Request,
+    Build: func(ctx *di.Context) (interface{}, error) {
+        return &MyObject{}, nil
+    },
+}
 ```
+
+The scopes are defined when the Builder is created :
+
+```go
+builder, err := NewBuilder("app", "request")
+```
+
+Scopes are defined from the wider to the narrower. If no scope is given to `NewBuilder` it is created with the three default scopes : `di.App`, `di.Request` and `di.SubRequest`. These should be enough almost all the time.
+
+Contexts created by the Builder belongs to one of these scopes. A Context may have a parent with a wider scope and children with a narrower scope. A Context is only able to build objects from its own scope, but it can retrieve object with a wider scope from its parent Context.
+
+If a Definition does not have a scope, the wider scope will be used.
+
+```go
+// create a Builder with the default scopes
+builder, _ := NewBuilder()
+
+// define an object in the App scope
+builder.AddDefinition(di.Definition{
+    Name: "app-object",
+    Scope: di.App,
+    Build: func(ctx *di.Context) (interface{}, error) {
+        return &MyObject{}, nil
+    },
+})
+
+// define an object in the Request scope
+builder.AddDefinition(di.Definition{
+    Name: "request-object",
+    Scope: di.Request,
+    Build: func(ctx *di.Context) (interface{}, error) {
+        return &MyObject{}, nil
+    },
+})
+
+// Build creates a Context in the wider scope
+app, _ := builder.Build()
+
+// app Context can get children in the Request scope
+req1, _ := app.SubContext()
+req2, _ := app.SubContext()
+
+// app-object can be created with the three contexts
+// the retrieved objects are the same : o1 == o2 == o3
+// the object is stored in the app context
+o1 := app.Get("app-object").(*MyObject)
+o2 := req1.Get("app-object").(*MyObject)
+o3 := req2.Get("app-object").(*MyObject)
+
+// request-object can only be retrieved from req1 and req2
+// the retrieved objects are not the same : o4 != o5
+o4 := req1.Get("request-object").(*MyObject)
+o5 := req2.Get("request-object").(*MyObject)
+```
+
+
+## Context deletion
+
+A definition can also have a `Close` function.
+
+```go
+di.Definition{
+    Name: "my-object",
+    Scope: di.App,
+    Build: func(ctx *di.Context) (interface{}, error) {
+        return &MyObject{}, nil
+    },
+    Close: func(obj interface{}) {
+        obj.(*MyObject).Close()
+    }
+}
+```
+
+This method is called when the `Delete` method is called on a Context.
+
+```go
+// create the context
+app, _ := builder.Build()
+
+// retrieve an object
+obj := app.Get("my-object").(*MyObject)
+
+// delete the Context, the Close function will be called on obj
+app.Delete()
+```
+
+Delete closes all the objects created in the Context. It will also call the Delete method on all the Context children. Once the Delete method has been called, the Context becomes unusable.
+
+The `database example` at the end of this documentation is a good example of how you can use Delete.
+
+
+## Define already built object
+
+The Builder `Set` method is a shortcut to define an already built object in the wider scope.
+
+```go
+builder.Set("my-object", object)
+```
+
+is the same as :
+
+```go
+builder.AddDefinition(di.Definition{
+    Name: "my-object",
+    Scope: di.App,
+    Build: func(ctx *di.Context) (interface{}, error) {
+        return object, nil
+    },
+})
+```
+
+It can be useful to define you application parameters.
+
+
+## Other methods to retrieve an object
+
+There are three methods to retrieve an object.
+
+### Get
+
+Get returns an interface that can be cast afterward. If the item can't be created, nil is returned.
+
+```go
+// it can be used safely
+objectInterface := ctx.Get("my-object")
+object, ok := objectInterface.(*MyObject)
+
+// or if you don't care about panicking
+object := ctx.Get("my-object").(*MyObject)
+```
+
+
+### SafeGet
+
+Get is fine to retrieve an object, but it does not give you any information if something goes wrong. SafeGet works like Get but also returns an error. It can be used to find why an object could not be created.
+
+```go
+objectInterface, err := ctx.SafeGet("my-object")
+```
+
+
+### Fill
+
+The third method to retrieve an object is Fill. It returns an error if something goes wrong like SafeGet, but it may be more practical in certain situations.
+
+```go
+var object *MyObject
+err = ctx.Fill("my-object", &MyObject)
+```
+
 
 ## Database example
 
@@ -193,12 +245,12 @@ import (
 )
 
 func main() {
-    cm := createContextManager()
+    app := createApp()
 
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
         // Create a request and delete it once it has been handled.
-        // It's very important to delete the request to free its memory.
-        request, _ := cm.Context("request")
+        // Deleting the request will close the database connection.
+        request, _ := app.SubContext()
         defer request.Delete()
         handler(w, r, request)
     })
@@ -206,36 +258,35 @@ func main() {
     http.ListenAndServe(":8080", nil)
 }
 
-func createContextManager() *di.ContextManager {
-    cm, _ := di.NewContextManager("app", "request")
+func createApp() *di.Context {
+    builder, _ := di.NewBuilder()
 
-    // register the database configuration
-    cm.Instance(di.Instance{
-        Name: "dsn",
-        Item: "user:password@/dbname",
-    })
+    // Define the database configuration.
+    builder.Set("dsn", "user:password@/dbname")
 
-    // register the connection
-    cm.Maker(di.Maker{
+    // Define the connection in the Request scope.
+    // Each request will use a different connection.
+    builder.AddDefinition(di.Definition{
         Name:  "mysql",
-        Scope: "request",
-
-        Make: func(c *di.Context, params ...interface{}) (interface{}, error) {
-            dsn := c.Make("dsn").(string)
+        Scope: di.Request,
+        Build: func(ctx *di.Context) (interface{}, error) {
+            dsn := ctx.Get("dsn").(string)
             return sql.Open("mysql", dsn)
         },
-
-        Close: func(item interface{}) {
-            item.(*sql.DB).Close()
+        Close: func(obj interface{}) {
+            obj.(*sql.DB).Close()
         },
     })
 
-    return cm
+    // Create the app Context.
+    app, _ := builder.Build()
+
+    return app
 }
 
-func handler(w http.ResponseWriter, r *http.Request, c *di.Context) {
-    // Retrieve the connection
-    db := c.Make("mysql").(*sql.DB)
+func handler(w http.ResponseWriter, r *http.Request, ctx *di.Context) {
+    // Retrieve the connection.
+    db := ctx.Get("mysql").(*sql.DB)
 
     var variable, value string
 
