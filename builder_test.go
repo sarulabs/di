@@ -26,12 +26,12 @@ func TestDefinitions(t *testing.T) {
 
 	def1 := Definition{
 		Name:  "o1",
-		Build: func(ctx *Context) (interface{}, error) { return nil, nil },
+		Build: func(ctx Context) (interface{}, error) { return nil, nil },
 	}
 
 	def2 := Definition{
 		Name:  "o2",
-		Build: func(ctx *Context) (interface{}, error) { return nil, nil },
+		Build: func(ctx Context) (interface{}, error) { return nil, nil },
 	}
 
 	b.AddDefinition(def1)
@@ -49,9 +49,7 @@ func TestIsDefined(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "name",
 		Scope: App,
-		Build: func(ctx *Context) (interface{}, error) {
-			return nil, nil
-		},
+		Build: func(ctx Context) (interface{}, error) { return nil, nil },
 	})
 
 	assert.True(t, b.IsDefined("name"))
@@ -63,9 +61,7 @@ func TestAddDefinitionErrors(t *testing.T) {
 
 	var err error
 
-	buildFunc := func(ctx *Context) (interface{}, error) {
-		return nil, nil
-	}
+	buildFunc := func(ctx Context) (interface{}, error) { return nil, nil }
 
 	err = b.AddDefinition(Definition{Name: "name", Scope: App, Build: buildFunc})
 	assert.Nil(t, err)
@@ -101,7 +97,7 @@ func TestSet(t *testing.T) {
 func TestBuild(t *testing.T) {
 	b, _ := NewBuilder()
 
-	buildFn := func(ctx *Context) (interface{}, error) { return nil, nil }
+	buildFn := func(ctx Context) (interface{}, error) { return nil, nil }
 
 	def1 := Definition{
 		Name:  "o1",
@@ -120,6 +116,6 @@ func TestBuild(t *testing.T) {
 	app, err := b.Build()
 	assert.Nil(t, err)
 	assert.Equal(t, App, app.Scope())
-	assert.Len(t, app.definitions, 2)
-	assert.Equal(t, App, app.definitions["o1"].Scope)
+	assert.Len(t, app.Definitions(), 2)
+	assert.Equal(t, App, app.Definitions()["o1"].Scope)
 }

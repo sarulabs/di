@@ -17,6 +17,34 @@ type nestedMockObject struct {
 	Object *mockObject
 }
 
+func TestContextDefinition(t *testing.T) {
+	b, _ := NewBuilder()
+
+	def1 := Definition{
+		Name: "o1",
+		Build: func(ctx Context) (interface{}, error) {
+			return &mockObject{}, nil
+		},
+	}
+
+	def2 := Definition{
+		Name: "o2",
+		Build: func(ctx Context) (interface{}, error) {
+			return &mockObject{}, nil
+		},
+	}
+
+	b.AddDefinition(def1)
+	b.AddDefinition(def2)
+
+	app, _ := b.Build()
+	defs := app.Definitions()
+
+	assert.Len(t, defs, 2)
+	assert.Equal(t, "o1", defs["o1"].Name)
+	assert.Equal(t, "o2", defs["o2"].Name)
+}
+
 func TestContextScope(t *testing.T) {
 	b, _ := NewBuilder()
 	app, _ := b.Build()
@@ -50,37 +78,6 @@ func TestContextSubScopes(t *testing.T) {
 	assert.Empty(t, subrequest.SubScopes())
 }
 
-func TestContextHasSubScope(t *testing.T) {
-	b, _ := NewBuilder()
-	app, _ := b.Build()
-	request, _ := app.SubContext()
-	subrequest, _ := request.SubContext()
-
-	assert.False(t, app.HasSubScope(App))
-	assert.True(t, app.HasSubScope(Request))
-	assert.True(t, app.HasSubScope(SubRequest))
-	assert.False(t, app.HasSubScope("other"))
-
-	assert.False(t, subrequest.HasSubScope(App))
-	assert.False(t, subrequest.HasSubScope(Request))
-	assert.False(t, subrequest.HasSubScope(SubRequest))
-	assert.False(t, subrequest.HasSubScope("other"))
-}
-
-func TestContextParentWithScope(t *testing.T) {
-	b, _ := NewBuilder()
-	app, _ := b.Build()
-	request, _ := app.SubContext()
-	subrequest, _ := request.SubContext()
-
-	assert.True(t, app == request.ParentWithScope(App))
-	assert.True(t, app == subrequest.ParentWithScope(App))
-	assert.True(t, request == subrequest.ParentWithScope(Request))
-
-	assert.Nil(t, app.ParentWithScope("undefined"))
-	assert.Nil(t, app.ParentWithScope(Request))
-}
-
 func TestSubContextCreation(t *testing.T) {
 	var err error
 	b, _ := NewBuilder()
@@ -104,7 +101,7 @@ func TestSafeGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: Request,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 	})
@@ -112,7 +109,7 @@ func TestSafeGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "unmakable",
 		Scope: Request,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return nil, errors.New("error")
 		},
 	})
@@ -157,7 +154,7 @@ func TestBuildPanic(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: App,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			panic("panic in Build function")
 		},
 	})
@@ -182,9 +179,9 @@ func TestNestedDependencies(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "nestedObject",
 		Scope: Request,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &nestedMockObject{
-				ctx.Get("appObject").(*mockObject),
+				Object: ctx.Get("appObject").(*mockObject),
 			}, nil
 		},
 	})
@@ -202,7 +199,7 @@ func TestGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: Request,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return 10, nil
 		},
 	})
@@ -220,7 +217,7 @@ func TestFill(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: App,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return 10, nil
 		},
 	})
@@ -245,7 +242,7 @@ func TestDelete(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj1",
 		Scope: App,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -259,7 +256,7 @@ func TestDelete(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj2",
 		Scope: Request,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -273,7 +270,7 @@ func TestDelete(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj3",
 		Scope: SubRequest,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -287,7 +284,7 @@ func TestDelete(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj4",
 		Scope: SubRequest,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 	})
@@ -295,6 +292,9 @@ func TestDelete(t *testing.T) {
 	app, _ := b.Build()
 	request, _ := app.SubContext()
 	subrequest, _ := request.SubContext()
+
+	assert.False(t, request.IsClosed())
+	assert.False(t, subrequest.IsClosed())
 
 	var err error
 
@@ -309,8 +309,8 @@ func TestDelete(t *testing.T) {
 	assert.True(t, obj2.Closed)
 	assert.True(t, obj3.Closed)
 
-	assert.Nil(t, request.Parent(), "should have removed request parent")
-	assert.Nil(t, subrequest.Parent(), "should have removed subrequest parent")
+	assert.True(t, request.IsClosed())
+	assert.True(t, subrequest.IsClosed())
 
 	_, err = app.SafeGet("obj1")
 	assert.Nil(t, err, "should still be able to create object from the app context")
@@ -335,7 +335,7 @@ func TestClosePanic(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: App,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -355,6 +355,32 @@ func TestClosePanic(t *testing.T) {
 	app.Delete()
 }
 
+func TestCycleError(t *testing.T) {
+	b, _ := NewBuilder()
+
+	b.AddDefinition(Definition{
+		Name: "o1",
+		Build: func(ctx Context) (interface{}, error) {
+			return &nestedMockObject{
+				Object: ctx.Get("o2").(*nestedMockObject).Object,
+			}, nil
+		},
+	})
+
+	b.AddDefinition(Definition{
+		Name: "o2",
+		Build: func(ctx Context) (interface{}, error) {
+			return &nestedMockObject{
+				Object: ctx.Get("o1").(*nestedMockObject).Object,
+			}, nil
+		},
+	})
+
+	app, _ := b.Build()
+	_, err := app.SafeGet("o1")
+	assert.NotNil(t, err)
+}
+
 func TestRace(t *testing.T) {
 	b, _ := NewBuilder()
 
@@ -363,7 +389,7 @@ func TestRace(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: App,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -377,9 +403,9 @@ func TestRace(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "nested",
 		Scope: Request,
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return &nestedMockObject{
-				ctx.Get("object").(*mockObject),
+				Object: ctx.Get("object").(*mockObject),
 			}, nil
 		},
 		Close: func(obj interface{}) {

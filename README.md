@@ -1,5 +1,7 @@
 # DI
 
+[![Build Status](https://travis-ci.org/sarulabs/di.svg?branch=dev)](https://travis-ci.org/sarulabs/di)
+
 Dependency injection container for golang.
 
 If you don't know what a dependency injection container is, you may want to read this article before :
@@ -16,7 +18,7 @@ A Definition contains at least the `Name` of the object and a `Build` function t
 ```go
 di.Definition{
     Name: "my-object",
-    Build: func(ctx *di.Context) (interface{}, error) {
+    Build: func(ctx di.Context) (interface{}, error) {
         return &MyObject{}, nil
     },
 }
@@ -29,7 +31,7 @@ builder := di.NewBuilder()
 
 builder.AddDefinition(di.Definition{
     Name: "my-object",
-    Build: func(ctx *di.Context) (interface{}, error) {
+    Build: func(ctx di.Context) (interface{}, error) {
         return &MyObject{}, nil
     },
 })
@@ -55,7 +57,7 @@ The `Build` function can also call the `Get` method of the Context. That allows 
 ```go
 di.Definition{
     Name: "nested-object",
-    Build: func(ctx *di.Context) (interface{}, error) {
+    Build: func(ctx di.Context) (interface{}, error) {
         return &MyNestedObject{
             Object: ctx.Get("my-object").(*MyObject),
         }, nil
@@ -72,7 +74,7 @@ Definitions can also have a scope :
 di.Definition{
     Name: "my-object",
     Scope: di.Request,
-    Build: func(ctx *di.Context) (interface{}, error) {
+    Build: func(ctx di.Context) (interface{}, error) {
         return &MyObject{}, nil
     },
 }
@@ -98,7 +100,7 @@ builder, _ := NewBuilder()
 builder.AddDefinition(di.Definition{
     Name: "app-object",
     Scope: di.App,
-    Build: func(ctx *di.Context) (interface{}, error) {
+    Build: func(ctx di.Context) (interface{}, error) {
         return &MyObject{}, nil
     },
 })
@@ -107,7 +109,7 @@ builder.AddDefinition(di.Definition{
 builder.AddDefinition(di.Definition{
     Name: "request-object",
     Scope: di.Request,
-    Build: func(ctx *di.Context) (interface{}, error) {
+    Build: func(ctx di.Context) (interface{}, error) {
         return &MyObject{}, nil
     },
 })
@@ -141,7 +143,7 @@ A definition can also have a `Close` function.
 di.Definition{
     Name: "my-object",
     Scope: di.App,
-    Build: func(ctx *di.Context) (interface{}, error) {
+    Build: func(ctx di.Context) (interface{}, error) {
         return &MyObject{}, nil
     },
     Close: func(obj interface{}) {
@@ -182,7 +184,7 @@ is the same as :
 builder.AddDefinition(di.Definition{
     Name: "my-object",
     Scope: di.App,
-    Build: func(ctx *di.Context) (interface{}, error) {
+    Build: func(ctx di.Context) (interface{}, error) {
         return object, nil
     },
 })
@@ -258,7 +260,7 @@ func main() {
     http.ListenAndServe(":8080", nil)
 }
 
-func createApp() *di.Context {
+func createApp() di.Context {
     builder, _ := di.NewBuilder()
 
     // Define the database configuration.
@@ -269,7 +271,7 @@ func createApp() *di.Context {
     builder.AddDefinition(di.Definition{
         Name:  "mysql",
         Scope: di.Request,
-        Build: func(ctx *di.Context) (interface{}, error) {
+        Build: func(ctx di.Context) (interface{}, error) {
             dsn := ctx.Get("dsn").(string)
             return sql.Open("mysql", dsn)
         },
@@ -284,7 +286,7 @@ func createApp() *di.Context {
     return app
 }
 
-func handler(w http.ResponseWriter, r *http.Request, ctx *di.Context) {
+func handler(w http.ResponseWriter, r *http.Request, ctx di.Context) {
     // Retrieve the connection.
     db := ctx.Get("mysql").(*sql.DB)
 

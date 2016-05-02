@@ -9,7 +9,7 @@ import (
 type Definition struct {
 	Name  string
 	Scope string
-	Build func(ctx *Context) (interface{}, error)
+	Build func(ctx Context) (interface{}, error)
 	Close func(obj interface{})
 }
 
@@ -132,7 +132,7 @@ func (b *Builder) Set(name string, obj interface{}) error {
 	return b.AddDefinition(Definition{
 		Name:  name,
 		Scope: b.scopes[0],
-		Build: func(ctx *Context) (interface{}, error) {
+		Build: func(ctx Context) (interface{}, error) {
 			return obj, nil
 		},
 	})
@@ -140,7 +140,7 @@ func (b *Builder) Set(name string, obj interface{}) error {
 
 // Build creates a Context in the wider scope
 // with all the current scopes and definitions.
-func (b *Builder) Build() (*Context, error) {
+func (b *Builder) Build() (Context, error) {
 	defs := b.Definitions()
 
 	for name, def := range defs {
@@ -150,12 +150,15 @@ func (b *Builder) Build() (*Context, error) {
 		}
 	}
 
-	return &Context{
-		scopes:      b.scopes,
-		scope:       b.scopes[0],
-		definitions: defs,
-		parent:      nil,
-		children:    []*Context{},
-		objects:     map[string]interface{}{},
+	return &context{
+		contextData: &contextData{
+			scopes:      b.scopes,
+			scope:       b.scopes[0],
+			definitions: defs,
+			parent:      nil,
+			children:    []*contextData{},
+			objects:     map[string]interface{}{},
+		},
+		building: []string{},
 	}, nil
 }
