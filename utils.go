@@ -1,7 +1,7 @@
 package di
 
 import (
-	"errors"
+	"fmt"
 	"reflect"
 )
 
@@ -20,7 +20,9 @@ func stringSliceContains(arr []string, s string) bool {
 func fill(src, dest interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = errors.New("destination should be a pointer to the source type")
+			d := reflect.TypeOf(dest)
+			s := reflect.TypeOf(src)
+			err = fmt.Errorf("destination is `%s` but should be a pointer to the source type `%s`", d, s)
 		}
 	}()
 
