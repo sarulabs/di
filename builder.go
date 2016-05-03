@@ -26,6 +26,7 @@ const SubRequest = "subrequest"
 // The scopes and object definitions are set in the Builder
 // that can create a Context based on these information.
 type Builder struct {
+	Logger      Logger
 	definitions map[string]Definition
 	scopes      []string
 }
@@ -150,15 +151,21 @@ func (b *Builder) Build() (Context, error) {
 		}
 	}
 
+	logger := b.Logger
+
+	if logger == nil {
+		logger = MuteLogger{}
+	}
+
 	return &context{
-		contextData: &contextData{
+		contextCore: &contextCore{
+			logger:      logger,
 			scopes:      b.scopes,
 			scope:       b.scopes[0],
 			definitions: defs,
 			parent:      nil,
-			children:    []*contextData{},
+			children:    []*contextCore{},
 			objects:     map[string]interface{}{},
 		},
-		building: []string{},
 	}, nil
 }

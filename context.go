@@ -62,24 +62,69 @@ type Context interface {
 	IsClosed() bool
 }
 
-type contextData struct {
+type contextCore struct {
 	m           sync.Mutex
 	closed      bool
+	logger      Logger
 	scope       string
 	scopes      []string
 	definitions map[string]Definition
-	parent      *contextData
-	children    []*contextData
+	parent      *contextCore
+	children    []*contextCore
 	objects     map[string]interface{}
 }
 
-func (ctx *contextData) getParent() *contextData {
+func (ctx *contextCore) Definitions() map[string]Definition {
+	defs := map[string]Definition{}
+
+	for name, def := range ctx.definitions {
+		defs[name] = def
+	}
+
+	return defs
+}
+
+func (ctx *contextCore) Scope() string {
+	return ctx.scope
+}
+
+func (ctx *contextCore) Scopes() []string {
+	scopes := make([]string, len(ctx.scopes))
+	copy(scopes, ctx.scopes)
+	return scopes
+}
+
+func (ctx *contextCore) ParentScopes() []string {
+	scopes := ctx.Scopes()
+
+	for i, s := range scopes {
+		if s == ctx.scope {
+			return scopes[:i]
+		}
+	}
+
+	return []string{}
+}
+
+func (ctx *contextCore) SubScopes() []string {
+	scopes := ctx.Scopes()
+
+	for i, s := range scopes {
+		if s == ctx.scope {
+			return scopes[i+1:]
+		}
+	}
+
+	return []string{}
+}
+
+func (ctx *contextCore) getParent() *contextCore {
 	ctx.m.Lock()
 	defer ctx.m.Unlock()
 	return ctx.parent
 }
 
-func (ctx *contextData) parentWithScope(scope string) *contextData {
+func (ctx *contextCore) getParentWithScope(scope string) *contextCore {
 	parent := ctx.getParent()
 
 	for parent != nil {
@@ -92,11 +137,11 @@ func (ctx *contextData) parentWithScope(scope string) *contextData {
 	return nil
 }
 
-func (ctx *contextData) Delete() {
+func (ctx *contextCore) Delete() {
 	ctx.m.Lock()
 
 	// copy children, parent and objects so they can be removed outside of the locked area
-	children := make([]*contextData, len(ctx.children))
+	children := make([]*contextCore, len(ctx.children))
 	copy(children, ctx.children)
 
 	parent := ctx.parent
@@ -144,16 +189,19 @@ func (ctx *contextData) Delete() {
 	ctx.m.Unlock()
 }
 
-func (ctx *contextData) close(obj interface{}, def Definition) {
+func (ctx *contextCore) close(obj interface{}, def Definition) {
 	defer func() {
-		recover()
+		if r := recover(); r != nil {
+			msg := fmt.Sprintf("could not close `%s` err=%s stack=%s", def.Name, r, debug.Stack())
+			ctx.logger.Error(msg)
+		}
 	}()
 
 	def.Close(obj)
 	return
 }
 
-func (ctx *contextData) IsClosed() bool {
+func (ctx *contextCore) IsClosed() bool {
 	ctx.m.Lock()
 	defer ctx.m.Unlock()
 	return ctx.closed
@@ -161,58 +209,14 @@ func (ctx *contextData) IsClosed() bool {
 
 // context is the implementation of the Context interface
 type context struct {
-	*contextData
-	building []string
-}
-
-func (ctx context) Definitions() map[string]Definition {
-	defs := map[string]Definition{}
-
-	for name, def := range ctx.definitions {
-		defs[name] = def
-	}
-
-	return defs
-}
-
-func (ctx context) Scope() string {
-	return ctx.scope
-}
-
-func (ctx context) Scopes() []string {
-	scopes := make([]string, len(ctx.scopes))
-	copy(scopes, ctx.scopes)
-	return scopes
-}
-
-func (ctx context) ParentScopes() []string {
-	scopes := ctx.Scopes()
-
-	for i, s := range scopes {
-		if s == ctx.scope {
-			return scopes[:i]
-		}
-	}
-
-	return []string{}
-}
-
-func (ctx context) SubScopes() []string {
-	scopes := ctx.Scopes()
-
-	for i, s := range scopes {
-		if s == ctx.scope {
-			return scopes[i+1:]
-		}
-	}
-
-	return []string{}
+	*contextCore
+	built []string
 }
 
 func (ctx context) Parent() Context {
 	return context{
-		contextData: ctx.getParent(),
-		building:    ctx.building,
+		contextCore: ctx.getParent(),
+		built:       ctx.built,
 	}
 }
 
@@ -224,15 +228,16 @@ func (ctx context) SubContext() (Context, error) {
 	}
 
 	child := &context{
-		contextData: &contextData{
+		contextCore: &contextCore{
+			logger:      ctx.logger,
 			scope:       subscopes[0],
 			scopes:      ctx.scopes,
 			definitions: ctx.definitions,
-			parent:      ctx.contextData,
-			children:    []*contextData{},
+			parent:      ctx.contextCore,
+			children:    []*contextCore{},
 			objects:     map[string]interface{}{},
 		},
-		building: ctx.building,
+		built: ctx.built,
 	}
 
 	ctx.m.Lock()
@@ -241,7 +246,7 @@ func (ctx context) SubContext() (Context, error) {
 		return nil, errors.New("the Context is closed")
 	}
 
-	ctx.children = append(ctx.children, child.contextData)
+	ctx.children = append(ctx.children, child.contextCore)
 
 	ctx.m.Unlock()
 
@@ -249,20 +254,13 @@ func (ctx context) SubContext() (Context, error) {
 }
 
 func (ctx context) SafeGet(name string) (interface{}, error) {
-	def, ok := ctx.definitions[name]
-	if !ok {
-		return nil, fmt.Errorf("could not find a Definition for `%s` in the Context", name)
+	obj, err := ctx.get(name)
+	if err != nil {
+		msg := fmt.Sprintf("could not build `%s` err=%s", name, err)
+		ctx.logger.Error(msg)
 	}
 
-	if stringSliceContains(ctx.building, name) {
-		return nil, fmt.Errorf("there is a cycle in object definitions : %v", ctx.building)
-	}
-
-	if ctx.scope != def.Scope {
-		return ctx.getInParent(def)
-	}
-
-	return ctx.getInThisContext(def)
+	return obj, err
 }
 
 func (ctx context) Get(name string) interface{} {
@@ -277,6 +275,23 @@ func (ctx context) Fill(name string, dst interface{}) error {
 	}
 
 	return fill(obj, dst)
+}
+
+func (ctx context) get(name string) (interface{}, error) {
+	def, ok := ctx.definitions[name]
+	if !ok {
+		return nil, fmt.Errorf("could not find a Definition for `%s` in the Context", name)
+	}
+
+	if stringSliceContains(ctx.built, name) {
+		return nil, fmt.Errorf("there is a cycle in object definitions : %v", ctx.built)
+	}
+
+	if ctx.scope != def.Scope {
+		return ctx.getInParent(def)
+	}
+
+	return ctx.getInThisContext(def)
 }
 
 func (ctx context) getInThisContext(def Definition) (interface{}, error) {
@@ -299,7 +314,7 @@ func (ctx context) getInThisContext(def Definition) (interface{}, error) {
 }
 
 func (ctx context) getInParent(def Definition) (interface{}, error) {
-	parent := ctx.parentWithScope(def.Scope)
+	parent := ctx.getParentWithScope(def.Scope)
 	if parent == nil {
 		return nil, fmt.Errorf(
 			"Definition of `%s` requires `%s` scope which does not match this Context scope or any of its parents scope",
@@ -309,8 +324,8 @@ func (ctx context) getInParent(def Definition) (interface{}, error) {
 	}
 
 	p := context{
-		contextData: parent,
-		building:    ctx.building,
+		contextCore: parent,
+		built:       ctx.built,
 	}
 
 	return p.getInThisContext(def)
@@ -347,13 +362,13 @@ func (ctx context) saveObject(name string, obj interface{}) error {
 func (ctx context) build(def Definition) (obj interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic : %s - stack : %s", r, debug.Stack())
+			err = fmt.Errorf("could not build `%s` err=%s stack=%s", def.Name, r, debug.Stack())
 		}
 	}()
 
 	obj, err = def.Build(&context{
-		contextData: ctx.contextData,
-		building:    append(ctx.building, def.Name),
+		contextCore: ctx.contextCore,
+		built:       append(ctx.built, def.Name),
 	})
 	return
 }
