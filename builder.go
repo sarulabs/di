@@ -5,23 +5,6 @@ import (
 	"fmt"
 )
 
-// Definition contains information to build and close an object inside a Context.
-type Definition struct {
-	Name  string
-	Scope string
-	Build func(ctx Context) (interface{}, error)
-	Close func(obj interface{})
-}
-
-// App is the name of the application scope.
-const App = "app"
-
-// Request is the name of the request scope.
-const Request = "request"
-
-// SubRequest is the name of the subrequest scope.
-const SubRequest = "subrequest"
-
 // Builder is the only way to create a working Context.
 // The scopes and object definitions are set in the Builder
 // that can create a Context based on these information.
