@@ -40,8 +40,9 @@ type Context interface {
 	SubContext() (Context, error)
 
 	// SafeGet retrieves an object from the Context.
+	// The object has to belong to this scope or a wider one.
 	// If the object does not already exist, it is created and saved in the Context.
-	// If the item can't be created, it returns an error.
+	// If the object can't be created, it returns an error.
 	SafeGet(name string) (interface{}, error)
 
 	// Get is similar to SafeGet but it does not return the error.
@@ -51,6 +52,23 @@ type Context interface {
 	// Instead it fills the provided object with the value returned by SafeGet.
 	// The provided object must be a pointer to the value returned by SafeGet.
 	Fill(name string, dst interface{}) error
+
+	// NastySafeGet retrieves an object from the Context, like SafeGet.
+	// The difference is that the object can still be retrieved
+	// even if it belongs to a narrower scope.
+	// Do do so NastySafeGet creates a subcontext.
+	// When the created object is no longer needed,
+	// it is important to use the Clean method to Delete these contexts.
+	NastySafeGet(name string) (interface{}, error)
+
+	// NastyGet is similar to NastySafeGet but it does not return the error.
+	NastyGet(name string) interface{}
+
+	// NastyFill is similar to NastySafeGet but copies the object in dst instead of returning it.
+	NastyFill(name string, dst interface{}) error
+
+	// Clean deletes the subcontext created by NastySafeGet, NastyGet or NastyFill.
+	Clean()
 
 	// Delete removes all the references to the objects that have been build in this context.
 	// Before removing the references, it calls the Close method
@@ -71,6 +89,7 @@ type contextCore struct {
 	definitions map[string]Definition
 	parent      *contextCore
 	children    []*contextCore
+	nastyChild  *contextCore
 	objects     map[string]interface{}
 }
 
@@ -140,17 +159,22 @@ func (ctx *contextCore) getParentWithScope(scope string) *contextCore {
 func (ctx *contextCore) Delete() {
 	ctx.m.Lock()
 
-	// copy children, parent and objects so they can be removed outside of the locked area
+	// copy children, parent and objects so they can be closed outside of the locked area
 	children := make([]*contextCore, len(ctx.children))
 	copy(children, ctx.children)
+	ctx.children = nil
+
+	nastyChild := ctx.nastyChild
+	ctx.nastyChild = nil
 
 	parent := ctx.parent
+	ctx.parent = nil
 
 	objects := map[string]interface{}{}
-
 	for name, obj := range ctx.objects {
 		objects[name] = obj
 	}
+	ctx.objects = nil
 
 	ctx.closed = true
 
@@ -159,6 +183,10 @@ func (ctx *contextCore) Delete() {
 	// delete children
 	for _, child := range children {
 		child.Delete()
+	}
+
+	if nastyChild != nil {
+		nastyChild.Delete()
 	}
 
 	// remove reference from parent
@@ -175,18 +203,11 @@ func (ctx *contextCore) Delete() {
 		parent.m.Unlock()
 	}
 
-	// close items
+	// close objects
 	for name, obj := range objects {
 		def := ctx.definitions[name]
 		ctx.close(obj, def)
 	}
-
-	// remove references
-	ctx.m.Lock()
-	ctx.parent = nil
-	ctx.children = nil
-	ctx.objects = nil
-	ctx.m.Unlock()
 }
 
 func (ctx *contextCore) close(obj interface{}, def Definition) {
@@ -221,23 +242,9 @@ func (ctx context) Parent() Context {
 }
 
 func (ctx context) SubContext() (Context, error) {
-	subscopes := ctx.SubScopes()
-
-	if len(subscopes) == 0 {
-		return nil, fmt.Errorf("there is no narrower scope than `%s`", ctx.scope)
-	}
-
-	child := &context{
-		contextCore: &contextCore{
-			logger:      ctx.logger,
-			scope:       subscopes[0],
-			scopes:      ctx.scopes,
-			definitions: ctx.definitions,
-			parent:      ctx.contextCore,
-			children:    []*contextCore{},
-			objects:     map[string]interface{}{},
-		},
-		built: ctx.built,
+	child, err := ctx.createChild()
+	if err != nil {
+		return nil, err
 	}
 
 	ctx.m.Lock()
@@ -251,6 +258,28 @@ func (ctx context) SubContext() (Context, error) {
 	ctx.m.Unlock()
 
 	return child, nil
+}
+
+func (ctx context) createChild() (*context, error) {
+	subscopes := ctx.SubScopes()
+
+	if len(subscopes) == 0 {
+		return nil, fmt.Errorf("there is no narrower scope than `%s`", ctx.scope)
+	}
+
+	return &context{
+		contextCore: &contextCore{
+			logger:      ctx.logger,
+			scope:       subscopes[0],
+			scopes:      ctx.scopes,
+			definitions: ctx.definitions,
+			parent:      ctx.contextCore,
+			children:    []*contextCore{},
+			nastyChild:  nil,
+			objects:     map[string]interface{}{},
+		},
+		built: ctx.built,
+	}, nil
 }
 
 func (ctx context) SafeGet(name string) (interface{}, error) {
@@ -371,4 +400,79 @@ func (ctx context) build(def Definition) (obj interface{}, err error) {
 		built:       append(ctx.built, def.Name),
 	})
 	return
+}
+
+func (ctx context) NastySafeGet(name string) (interface{}, error) {
+	def, ok := ctx.definitions[name]
+	if !ok {
+		return nil, fmt.Errorf("could not find a Definition for `%s` in the Context", name)
+	}
+
+	if !stringSliceContains(ctx.SubScopes(), def.Scope) {
+		return ctx.SafeGet(name)
+	}
+
+	var err error
+
+	ctx.m.Lock()
+	nastyChild := ctx.nastyChild
+	ctx.m.Unlock()
+
+	child := &context{
+		contextCore: nastyChild,
+		built:       ctx.built,
+	}
+
+	if nastyChild == nil {
+		child, err = ctx.addNastyChild()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return child.NastySafeGet(name)
+}
+
+func (ctx context) addNastyChild() (*context, error) {
+	child, err := ctx.createChild()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.m.Lock()
+
+	if ctx.closed {
+		return nil, errors.New("the Context is closed")
+	}
+
+	ctx.nastyChild = child.contextCore
+
+	ctx.m.Unlock()
+
+	return child, nil
+}
+
+func (ctx context) NastyGet(name string) interface{} {
+	obj, _ := ctx.NastySafeGet(name)
+	return obj
+}
+
+func (ctx context) NastyFill(name string, dst interface{}) error {
+	obj, err := ctx.NastySafeGet(name)
+	if err != nil {
+		return err
+	}
+
+	return fill(obj, dst)
+}
+
+func (ctx context) Clean() {
+	ctx.m.Lock()
+	child := ctx.nastyChild
+	ctx.nastyChild = nil
+	ctx.m.Unlock()
+
+	if child != nil {
+		child.Delete()
+	}
 }
