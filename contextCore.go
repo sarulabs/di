@@ -146,3 +146,14 @@ func (ctx *contextCore) IsClosed() bool {
 	defer ctx.m.Unlock()
 	return ctx.closed
 }
+
+func (ctx *contextCore) Clean() {
+	ctx.m.Lock()
+	child := ctx.nastyChild
+	ctx.nastyChild = nil
+	ctx.m.Unlock()
+
+	if child != nil {
+		child.Delete()
+	}
+}
