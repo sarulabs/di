@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
-	"sync"
 )
 
 // Context represents a dependency injection container.
@@ -13,10 +12,10 @@ import (
 // Objects can be retrieved from the Context.
 // If the desired object does not already exist in the Context,
 // it is built thanks to the object Definition.
-// The following requests to this object will return the same object.
+// The following attempts to get this object will return the same object.
 type Context interface {
-	// Definition returns the map of the available Definitions
-	// ordered by Definition name.
+	// Definition returns the map of the available Definitions ordered by Definition name.
+	// These Definitions represent all the objects that this Context can build.
 	Definitions() map[string]Definition
 
 	// Scope returns the Context scope.
@@ -28,8 +27,7 @@ type Context interface {
 	// ParentScopes returns the list of scopes  wider than the Context scope.
 	ParentScopes() []string
 
-	// SubContext creates a new Context in the next subscope
-	// that will have this Container as parent.
+	// SubScopes returns the list of scopes narrower than the Context scope.
 	SubScopes() []string
 
 	// Parent returns the parent Context.
@@ -54,11 +52,11 @@ type Context interface {
 	Fill(name string, dst interface{}) error
 
 	// NastySafeGet retrieves an object from the Context, like SafeGet.
-	// The difference is that the object can still be retrieved
+	// The difference is that the object can be retrieved
 	// even if it belongs to a narrower scope.
-	// Do do so NastySafeGet creates a subcontext.
+	// To do so NastySafeGet creates a subcontext.
 	// When the created object is no longer needed,
-	// it is important to use the Clean method to Delete these contexts.
+	// it is important to use the Clean method to Delete this subcontext.
 	NastySafeGet(name string) (interface{}, error)
 
 	// NastyGet is similar to NastySafeGet but it does not return the error.
@@ -70,167 +68,30 @@ type Context interface {
 	// Clean deletes the subcontext created by NastySafeGet, NastyGet or NastyFill.
 	Clean()
 
-	// Delete removes all the references to the objects that have been build in this context.
-	// Before removing the references, it calls the Close method
-	// from the object Definition on each object.
+	// Delete takes all the objects saved in this Context
+	// and calls the Close function of their Definition on them.
 	// It will also call Delete on each child and remove its reference in the parent Context.
+	// After deletion, the Context can no longer be used.
 	Delete()
 
 	// IsClosed retuns true if the Context has been deleted.
 	IsClosed() bool
 }
 
-type contextCore struct {
-	m           sync.Mutex
-	closed      bool
-	logger      Logger
-	scope       string
-	scopes      []string
-	definitions map[string]Definition
-	parent      *contextCore
-	children    []*contextCore
-	nastyChild  *contextCore
-	objects     map[string]interface{}
-}
-
-func (ctx *contextCore) Definitions() map[string]Definition {
-	defs := map[string]Definition{}
-
-	for name, def := range ctx.definitions {
-		defs[name] = def
-	}
-
-	return defs
-}
-
-func (ctx *contextCore) Scope() string {
-	return ctx.scope
-}
-
-func (ctx *contextCore) Scopes() []string {
-	scopes := make([]string, len(ctx.scopes))
-	copy(scopes, ctx.scopes)
-	return scopes
-}
-
-func (ctx *contextCore) ParentScopes() []string {
-	scopes := ctx.Scopes()
-
-	for i, s := range scopes {
-		if s == ctx.scope {
-			return scopes[:i]
-		}
-	}
-
-	return []string{}
-}
-
-func (ctx *contextCore) SubScopes() []string {
-	scopes := ctx.Scopes()
-
-	for i, s := range scopes {
-		if s == ctx.scope {
-			return scopes[i+1:]
-		}
-	}
-
-	return []string{}
-}
-
-func (ctx *contextCore) getParent() *contextCore {
-	ctx.m.Lock()
-	defer ctx.m.Unlock()
-	return ctx.parent
-}
-
-func (ctx *contextCore) getParentWithScope(scope string) *contextCore {
-	parent := ctx.getParent()
-
-	for parent != nil {
-		if parent.scope == scope {
-			return parent
-		}
-		parent = parent.getParent()
-	}
-
-	return nil
-}
-
-func (ctx *contextCore) Delete() {
-	ctx.m.Lock()
-
-	// copy children, parent and objects so they can be closed outside of the locked area
-	children := make([]*contextCore, len(ctx.children))
-	copy(children, ctx.children)
-	ctx.children = nil
-
-	nastyChild := ctx.nastyChild
-	ctx.nastyChild = nil
-
-	parent := ctx.parent
-	ctx.parent = nil
-
-	objects := map[string]interface{}{}
-	for name, obj := range ctx.objects {
-		objects[name] = obj
-	}
-	ctx.objects = nil
-
-	ctx.closed = true
-
-	ctx.m.Unlock()
-
-	// delete children
-	for _, child := range children {
-		child.Delete()
-	}
-
-	if nastyChild != nil {
-		nastyChild.Delete()
-	}
-
-	// remove reference from parent
-	if parent != nil {
-		parent.m.Lock()
-
-		for i, child := range parent.children {
-			if ctx == child {
-				parent.children = append(parent.children[:i], parent.children[i+1:]...)
-				break
-			}
-		}
-
-		parent.m.Unlock()
-	}
-
-	// close objects
-	for name, obj := range objects {
-		def := ctx.definitions[name]
-		ctx.close(obj, def)
-	}
-}
-
-func (ctx *contextCore) close(obj interface{}, def Definition) {
-	defer func() {
-		if r := recover(); r != nil {
-			msg := fmt.Sprintf("could not close `%s` err=%s stack=%s", def.Name, r, debug.Stack())
-			ctx.logger.Error(msg)
-		}
-	}()
-
-	def.Close(obj)
-	return
-}
-
-func (ctx *contextCore) IsClosed() bool {
-	ctx.m.Lock()
-	defer ctx.m.Unlock()
-	return ctx.closed
-}
-
 // context is the implementation of the Context interface
 type context struct {
+	// contextCore contains the context data.
+	// Serveral contexts can share the same contextCore.
+	// In this case these contexts represent the same entity,
+	// but at a different stage in an object construction.
 	*contextCore
+
+	// built contains the name of the Definition beeing built by this context.
+	// It is used to avoid cycles in object Definitions.
+	// Each time a Context is passed in parameter of the Build function
+	// of a definition, this is in fact a new context.
+	// This context is created with a built attribute
+	// updated with the name of the Definition.
 	built []string
 }
 
@@ -343,8 +204,12 @@ func (ctx context) getInThisContext(def Definition) (interface{}, error) {
 }
 
 func (ctx context) getInParent(def Definition) (interface{}, error) {
-	parent := ctx.getParentWithScope(def.Scope)
-	if parent == nil {
+	p := context{
+		contextCore: ctx.getParent(),
+		built:       ctx.built,
+	}
+
+	if p.contextCore == nil {
 		return nil, fmt.Errorf(
 			"Definition of `%s` requires `%s` scope which does not match this Context scope or any of its parents scope",
 			def.Name,
@@ -352,9 +217,8 @@ func (ctx context) getInParent(def Definition) (interface{}, error) {
 		)
 	}
 
-	p := context{
-		contextCore: parent,
-		built:       ctx.built,
+	if p.scope != def.Scope {
+		return p.getInParent(def)
 	}
 
 	return p.getInThisContext(def)
@@ -414,23 +278,27 @@ func (ctx context) NastySafeGet(name string) (interface{}, error) {
 
 	var err error
 
-	ctx.m.Lock()
-	nastyChild := ctx.nastyChild
-	ctx.m.Unlock()
-
 	child := &context{
-		contextCore: nastyChild,
+		contextCore: ctx.getNastyChild(),
 		built:       ctx.built,
 	}
 
-	if nastyChild == nil {
-		child, err = ctx.addNastyChild()
-		if err != nil {
-			return nil, err
-		}
+	if child.contextCore != nil {
+		return child.NastySafeGet(name)
+	}
+
+	child, err = ctx.addNastyChild()
+	if err != nil {
+		return nil, err
 	}
 
 	return child.NastySafeGet(name)
+}
+
+func (ctx context) getNastyChild() *contextCore {
+	ctx.m.Lock()
+	defer ctx.m.Unlock()
+	return ctx.nastyChild
 }
 
 func (ctx context) addNastyChild() (*context, error) {

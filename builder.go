@@ -43,10 +43,8 @@ func checkScopes(scopes []string) error {
 		if scope == "" {
 			return errors.New("a scope can't be an empty string")
 		}
-		for j := i + 1; j < len(scopes); j++ {
-			if scope == scopes[j] {
-				return fmt.Errorf("at least two scopes are identical")
-			}
+		if stringSliceContains(scopes[i+1:], scope) {
+			return fmt.Errorf("at least two scopes are identical")
 		}
 	}
 
