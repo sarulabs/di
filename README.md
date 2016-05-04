@@ -1,6 +1,7 @@
 # DI
 
 [![Build Status](https://travis-ci.org/sarulabs/di.svg?branch=dev)](https://travis-ci.org/sarulabs/di)
+[![GoDoc](https://godoc.org/github.com/sarulabs/di?status.png)](http://godoc.org/github.com/sarulabs/di)
 
 Dependency injection container for golang.
 
