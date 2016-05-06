@@ -14,7 +14,7 @@ type context struct {
 	// but at a different stage in an object construction.
 	*contextCore
 
-	// built contains the name of the Definition beeing built by this context.
+	// built contains the name of the Definition being built by this context.
 	// It is used to avoid cycles in object Definitions.
 	// Each time a Context is passed in parameter of the Build function
 	// of a definition, this is in fact a new context.

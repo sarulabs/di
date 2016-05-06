@@ -68,6 +68,6 @@ type Context interface {
 	// After deletion, the Context can no longer be used.
 	Delete()
 
-	// IsClosed retuns true if the Context has been deleted.
+	// IsClosed returns true if the Context has been deleted.
 	IsClosed() bool
 }

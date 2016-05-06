@@ -3,7 +3,7 @@ package di
 import "log"
 
 // Logger is the interface used to log errors
-// that occured while an object is built or closed.
+// that occurred while an object is built or closed.
 type Logger interface {
 	Error(args ...interface{})
 }
