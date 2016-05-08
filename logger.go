@@ -8,11 +8,11 @@ type Logger interface {
 	Error(args ...interface{})
 }
 
-// DefaultLogger is a Logger that uses log.Println
+// BasicLogger is a Logger that uses log.Println
 // to write the error on the standard output.
-type DefaultLogger struct{}
+type BasicLogger struct{}
 
-func (l DefaultLogger) Error(args ...interface{}) {
+func (l BasicLogger) Error(args ...interface{}) {
 	log.Println(args)
 }
 
