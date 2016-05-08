@@ -37,7 +37,7 @@ func TestContextDefinition(t *testing.T) {
 	b.AddDefinition(def1)
 	b.AddDefinition(def2)
 
-	app, _ := b.Build()
+	app := b.Build()
 	defs := app.Definitions()
 
 	assert.Len(t, defs, 2)
@@ -47,7 +47,7 @@ func TestContextDefinition(t *testing.T) {
 
 func TestContextScope(t *testing.T) {
 	b, _ := NewBuilder()
-	app, _ := b.Build()
+	app := b.Build()
 	request, _ := app.SubContext()
 	subrequest, _ := request.SubContext()
 
@@ -58,7 +58,7 @@ func TestContextScope(t *testing.T) {
 
 func TestContextParentScopes(t *testing.T) {
 	b, _ := NewBuilder()
-	app, _ := b.Build()
+	app := b.Build()
 	request, _ := app.SubContext()
 	subrequest, _ := request.SubContext()
 
@@ -69,7 +69,7 @@ func TestContextParentScopes(t *testing.T) {
 
 func TestContextSubScopes(t *testing.T) {
 	b, _ := NewBuilder()
-	app, _ := b.Build()
+	app := b.Build()
 	request, _ := app.SubContext()
 	subrequest, _ := request.SubContext()
 
@@ -82,8 +82,7 @@ func TestSubContextCreation(t *testing.T) {
 	var err error
 	b, _ := NewBuilder()
 
-	app, err := b.Build()
-	assert.Nil(t, err)
+	app := b.Build()
 
 	request, err := app.SubContext()
 	assert.Nil(t, err)
@@ -114,7 +113,7 @@ func TestSafeGet(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 	request, _ := app.SubContext()
 	subrequest, _ := request.SubContext()
 
@@ -159,7 +158,7 @@ func TestBuildPanic(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 
 	defer func() {
 		assert.Nil(t, recover(), "SafeGet should not panic")
@@ -186,7 +185,7 @@ func TestNestedDependencies(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 	request, _ := app.SubContext()
 
 	nestedObject := request.Get("nestedObject").(*nestedMockObject)
@@ -204,7 +203,7 @@ func TestGet(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 	request, _ := app.SubContext()
 
 	object := request.Get("object").(int)
@@ -222,7 +221,7 @@ func TestFill(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 
 	var err error
 	var object int
@@ -257,7 +256,7 @@ func TestNastySafeGet(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 
 	var obj, objBis interface{}
 	var err error
@@ -288,7 +287,7 @@ func TestNastyGet(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 
 	object := app.NastyGet("object").(int)
 	assert.Equal(t, 10, object)
@@ -305,7 +304,7 @@ func TestNastyFill(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 
 	var object int
 
@@ -328,7 +327,7 @@ func TestClean(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 
 	var obj *mockObject
 
@@ -395,7 +394,7 @@ func TestDelete(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 	request, _ := app.SubContext()
 	subrequest, _ := request.SubContext()
 
@@ -449,7 +448,7 @@ func TestClosePanic(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 
 	defer func() {
 		assert.Nil(t, recover(), "Close should not panic")
@@ -482,7 +481,7 @@ func TestCycleError(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 	_, err := app.SafeGet("o1")
 	assert.NotNil(t, err)
 }
@@ -522,7 +521,7 @@ func TestRace(t *testing.T) {
 		},
 	})
 
-	app, _ := b.Build()
+	app := b.Build()
 
 	cApp := make(chan struct{}, 100)
 

@@ -113,8 +113,7 @@ func TestBuild(t *testing.T) {
 	b.AddDefinition(def1)
 	b.AddDefinition(def2)
 
-	app, err := b.Build()
-	assert.Nil(t, err)
+	app := b.Build()
 	assert.Equal(t, App, app.Scope())
 	assert.Len(t, app.Definitions(), 2)
 	assert.Equal(t, App, app.Definitions()["o1"].Scope)

@@ -122,7 +122,7 @@ func (b *Builder) Set(name string, obj interface{}) error {
 
 // Build creates a Context in the wider scope
 // with all the current scopes and definitions.
-func (b *Builder) Build() (Context, error) {
+func (b *Builder) Build() Context {
 	defs := b.Definitions()
 
 	for name, def := range defs {
@@ -148,5 +148,5 @@ func (b *Builder) Build() (Context, error) {
 			children:    []*contextCore{},
 			objects:     map[string]interface{}{},
 		},
-	}, nil
+	}
 }
