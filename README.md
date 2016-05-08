@@ -46,10 +46,10 @@ builder.AddDefinition(di.Definition{
 
 ### Object retrieval
 
-Once the definitions have been added to a Builder, the Builder can generate a Context that can provide the defined objects.
+Once the definitions have been added to a Builder, the Builder can generate a Context. This Context will provide the objects defined in the Builder.
 
 ```go
-ctx, _ := builder.Build()
+ctx := builder.Build()
 obj := ctx.Get("my-object").(*MyObject)
 ```
 
@@ -71,6 +71,8 @@ di.Definition{
 }
 ```
 
+You can not create a cycle in the definitions (A needs B and B needs A). If that happens, an error will be returned at the time of the creation of the object.
+
 
 ## Scopes
 
@@ -89,20 +91,20 @@ di.Definition{
 The scopes are defined when the Builder is created :
 
 ```go
-builder, err := NewBuilder("app", "request")
+builder, err := di.NewBuilder("app", "request")
 ```
 
-Scopes are defined from the wider to the narrower. If no scope is given to `NewBuilder` it is created with the three default scopes : `di.App`, `di.Request` and `di.SubRequest`. These should be enough almost all the time.
+Scopes are defined from the wider to the narrower. If no scope is given to `NewBuilder`, it is created with the three default scopes : `di.App`, `di.Request` and `di.SubRequest`. These scopes should be enough almost all the time.
 
-Contexts created by the Builder belongs to one of these scopes. A Context may have a parent with a wider scope and children with a narrower scope. A Context is only able to build objects from its own scope, but it can retrieve object with a wider scope from its parent Context.
+Contexts created by the Builder belongs to one of these scopes. A Context may have a parent with a wider scope and children with a narrower scope. A Context is only able to build objects from its own scope, but it can retrieve objects with a wider scope from its parent Context.
 
 If a Definition does not have a scope, the wider scope will be used.
 
 ```go
-// create a Builder with the default scopes
-builder, _ := NewBuilder()
+// Create a Builder with the default scopes.
+builder, _ := di.NewBuilder()
 
-// define an object in the App scope
+// Define an object in the App scope.
 builder.AddDefinition(di.Definition{
     Name: "app-object",
     Scope: di.App,
@@ -111,7 +113,7 @@ builder.AddDefinition(di.Definition{
     },
 })
 
-// define an object in the Request scope
+// Define an object in the Request scope.
 builder.AddDefinition(di.Definition{
     Name: "request-object",
     Scope: di.Request,
@@ -120,22 +122,22 @@ builder.AddDefinition(di.Definition{
     },
 })
 
-// Build creates a Context in the wider scope
-app, _ := builder.Build()
+// Build creates a Context in the wider scope.
+app := builder.Build()
 
-// app Context can get children in the Request scope
+// app Context can get children in the Request scope.
 req1, _ := app.SubContext()
 req2, _ := app.SubContext()
 
-// app-object can be created with the three contexts
-// the retrieved objects are the same : o1 == o2 == o3
-// the object is stored in the app context
+// app-object can be retrieved from the three contexts.
+// The retrieved objects are the same : o1 == o2 == o3.
+// The object is stored in the app context.
 o1 := app.Get("app-object").(*MyObject)
 o2 := req1.Get("app-object").(*MyObject)
 o3 := req2.Get("app-object").(*MyObject)
 
-// request-object can only be retrieved from req1 and req2
-// the retrieved objects are not the same : o4 != o5
+// request-object can only be retrieved from req1 and req2.
+// The retrieved objects are not the same : o4 != o5.
 o4 := req1.Get("request-object").(*MyObject)
 o5 := req2.Get("request-object").(*MyObject)
 ```
@@ -158,25 +160,25 @@ di.Definition{
 }
 ```
 
-This method is called when the `Delete` method is called on a Context.
+This function is called when the `Delete` method is called on a Context.
 
 ```go
-// create the context
-app, _ := builder.Build()
+// Create the context.
+app := builder.Build()
 
-// retrieve an object
+// Retrieve an object.
 obj := app.Get("my-object").(*MyObject)
 
-// delete the Context, the Close function will be called on obj
+// Delete the Context, the Close function will be called on obj.
 app.Delete()
 ```
 
-Delete closes all the objects created in the Context. It will also call the Delete method on all the Context children. Once the Delete method has been called, the Context becomes unusable.
+Delete closes all the objects stored in the Context. This means objects with the same scope created by this Context or one of its children. It will also call the Delete method on all the Context children. Once the Delete method has been called, the Context becomes unusable.
 
 The `database example` at the end of this documentation is a good example of how you can use Delete.
 
 
-## Define already built object
+## Define an already built object
 
 The Builder `Set` method is a shortcut to define an already built object in the wider scope.
 
@@ -199,20 +201,18 @@ builder.AddDefinition(di.Definition{
 It can be useful to define you application parameters.
 
 
-## Other methods to retrieve an object
-
-There are three methods to retrieve an object.
+## Methods to retrieve an object
 
 ### Get
 
 Get returns an interface that can be cast afterward. If the item can't be created, nil is returned.
 
 ```go
-// it can be used safely
+// It can be used safely.
 objectInterface := ctx.Get("my-object")
 object, ok := objectInterface.(*MyObject)
 
-// or if you don't care about panicking
+// Or if you don't care about panicking...
 object := ctx.Get("my-object").(*MyObject)
 ```
 
@@ -234,6 +234,53 @@ The third method to retrieve an object is Fill. It returns an error if something
 var object *MyObject
 err = ctx.Fill("my-object", &MyObject)
 ```
+
+
+## Nasty retrieval
+
+The previous methods can retrieve an object defined in the same scope or a wider one. If you need an object that is defined in a narrower scope, you need to create a sub-context to retrieve it. It is logical but not always very practical.
+
+`NastyGet`, `NastySafeGet` and `NastyFill` work like `Get`, `SafeGet`and `Fill` but can retrieve objects defined in a narrower scope. To do so they generate sub-contexts that are not accessible. To remove these contexts, you have to call the `Clean` method on the Context.
+
+```go
+builder, _ := di.NewBuilder()
+
+builder.AddDefinition(di.Definition{
+    Name: "request-object",
+    Scope: di.Request,
+    Build: func(ctx di.Context) (interface{}, error) {
+        return &MyObject{}, nil
+    },
+    Close: func(obj interface{}) {
+        obj.(*MyObject).Close()
+    }
+})
+
+app := builder.Build()
+
+// app can retrieve a request-object with nasty methods.
+obj := req1.NastyGet("request-object").(*MyObject)
+
+// Once the objects created with nasty methods are no longer used,
+// you can call the Clean method. In this case, the Close function
+// will be called on the object.
+app.Clean()
+```
+
+
+## Logger
+
+If a Logger is set in the Builder when the Context is created, it will be used to log errors that might happen when an object is retrieved or closed. It is particularly useful if you use the `Get` retrieval method that does not return an error.
+
+```go
+builder, _ := di.NewBuilder()
+builder.Logger = di.BasicLogger{}
+```
+
+
+## Panic in Build and Close functions
+
+Panic in Build and Close functions of a Definition are recovered. In particular that allows you to use the `Get` method in a Build function.
 
 
 ## Database example
@@ -286,10 +333,8 @@ func createApp() di.Context {
         },
     })
 
-    // Create the app Context.
-    app, _ := builder.Build()
-
-    return app
+    // Returns the app Context.
+    return builder.Build()
 }
 
 func handler(w http.ResponseWriter, r *http.Request, ctx di.Context) {
