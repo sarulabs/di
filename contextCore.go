@@ -137,7 +137,10 @@ func (ctx *contextCore) closeObject(obj interface{}, def Definition) {
 		}
 	}()
 
-	def.Close(obj)
+	if def.Close != nil {
+		def.Close(obj)
+	}
+
 	return
 }
 
