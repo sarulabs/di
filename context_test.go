@@ -350,6 +350,42 @@ func TestDelete(t *testing.T) {
 		Build: func(ctx Context) (interface{}, error) {
 			return &mockObject{}, nil
 		},
+	})
+
+	b.AddDefinition(Definition{
+		Name:  "obj2",
+		Scope: Request,
+		Build: func(ctx Context) (interface{}, error) {
+			return &mockObject{}, nil
+		},
+	})
+
+	app := b.Build()
+	request, _ := app.SubContext()
+
+	assert.False(t, app.IsClosed())
+	assert.False(t, request.IsClosed())
+
+	app.Delete()
+
+	assert.False(t, app.IsClosed())
+	assert.False(t, request.IsClosed())
+
+	request.Delete()
+
+	assert.True(t, app.IsClosed())
+	assert.True(t, request.IsClosed())
+}
+
+func TestDeleteWithSubContexts(t *testing.T) {
+	b, _ := NewBuilder()
+
+	b.AddDefinition(Definition{
+		Name:  "obj1",
+		Scope: App,
+		Build: func(ctx Context) (interface{}, error) {
+			return &mockObject{}, nil
+		},
 		Close: func(obj interface{}) {
 			i := obj.(*mockObject)
 			i.Lock()
@@ -401,21 +437,22 @@ func TestDelete(t *testing.T) {
 	assert.False(t, request.IsClosed())
 	assert.False(t, subrequest.IsClosed())
 
-	var err error
-
 	obj1 := app.Get("obj1").(*mockObject)
 	obj2 := request.Get("obj2").(*mockObject)
 	obj3 := subrequest.Get("obj3").(*mockObject)
 	_ = subrequest.Get("obj4").(*mockObject)
 
-	request.Delete()
+	request.DeleteWithSubContexts()
 
 	assert.False(t, obj1.Closed)
 	assert.True(t, obj2.Closed)
 	assert.True(t, obj3.Closed)
 
+	assert.False(t, app.IsClosed())
 	assert.True(t, request.IsClosed())
 	assert.True(t, subrequest.IsClosed())
+
+	var err error
 
 	_, err = app.SafeGet("obj1")
 	assert.Nil(t, err, "should still be able to create object from the app context")
@@ -429,9 +466,13 @@ func TestDelete(t *testing.T) {
 	_, err = request.SubContext()
 	assert.NotNil(t, err, "should not be able to create a subcontext from a closed context")
 
-	app.Delete()
+	app.DeleteWithSubContexts()
 
 	assert.True(t, obj1.Closed)
+
+	assert.True(t, app.IsClosed())
+	assert.True(t, request.IsClosed())
+	assert.True(t, subrequest.IsClosed())
 }
 
 func TestClosePanic(t *testing.T) {

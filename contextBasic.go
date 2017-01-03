@@ -39,6 +39,7 @@ func (ctx context) SubContext() (Context, error) {
 	ctx.m.Lock()
 
 	if ctx.closed {
+		ctx.m.Unlock()
 		return nil, errors.New("the Context is closed")
 	}
 
@@ -220,6 +221,7 @@ func (ctx context) addNastyChild() (*context, error) {
 	ctx.m.Lock()
 
 	if ctx.closed {
+		ctx.m.Unlock()
 		return nil, errors.New("the Context is closed")
 	}
 

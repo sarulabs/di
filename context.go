@@ -62,10 +62,15 @@ type Context interface {
 	// Clean deletes the subcontext created by NastySafeGet, NastyGet or NastyFill.
 	Clean()
 
-	// Delete takes all the objects saved in this Context
+	// DeleteWithSubContexts takes all the objects saved in this Context
 	// and calls the Close function of their Definition on them.
-	// It will also call Delete on each child and remove its reference in the parent Context.
+	// It will also call DeleteWithSubContexts on each child and remove its reference in the parent Context.
 	// After deletion, the Context can no longer be used.
+	DeleteWithSubContexts()
+
+	// Delete works like DeleteWithSubContexts but do not delete the subcontexts.
+	// If the Context has subcontexts, it will not be deleted right away.
+	// The deletion only occurs when all the subcontexts have been deleted.
 	Delete()
 
 	// IsClosed returns true if the Context has been deleted.

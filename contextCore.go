@@ -10,16 +10,17 @@ import (
 // But it can not build objects on its own.
 // It should be used inside a context.
 type contextCore struct {
-	m           sync.Mutex
-	closed      bool
-	logger      Logger
-	scope       string
-	scopes      []string
-	definitions map[string]Definition
-	parent      *contextCore
-	children    []*contextCore
-	nastyChild  *contextCore
-	objects     map[string]interface{}
+	m               sync.Mutex
+	closed          bool
+	logger          Logger
+	scope           string
+	scopes          []string
+	definitions     map[string]Definition
+	parent          *contextCore
+	children        []*contextCore
+	nastyChild      *contextCore
+	objects         map[string]interface{}
+	deleteIfNoChild bool
 }
 
 func (ctx *contextCore) Definitions() map[string]Definition {
@@ -75,6 +76,20 @@ func (ctx *contextCore) getParent() *contextCore {
 func (ctx *contextCore) Delete() {
 	ctx.m.Lock()
 
+	if len(ctx.children) > 0 {
+		ctx.deleteIfNoChild = true
+		ctx.m.Unlock()
+		return
+	}
+
+	ctx.m.Unlock()
+
+	ctx.DeleteWithSubContexts()
+}
+
+func (ctx *contextCore) DeleteWithSubContexts() {
+	ctx.m.Lock()
+
 	c := &contextCore{
 		children:   make([]*contextCore, len(ctx.children)),
 		nastyChild: ctx.nastyChild,
@@ -101,11 +116,11 @@ func (ctx *contextCore) Delete() {
 
 func (ctx *contextCore) deleteClone(c *contextCore) {
 	for _, child := range c.children {
-		child.Delete()
+		child.DeleteWithSubContexts()
 	}
 
 	if c.nastyChild != nil {
-		c.nastyChild.Delete()
+		c.nastyChild.DeleteWithSubContexts()
 	}
 
 	if c.parent != nil {
@@ -119,14 +134,22 @@ func (ctx *contextCore) deleteClone(c *contextCore) {
 
 func (ctx *contextCore) removeChild(child *contextCore) {
 	ctx.m.Lock()
-	defer ctx.m.Unlock()
 
 	for i, c := range ctx.children {
 		if c == child {
 			ctx.children = append(ctx.children[:i], ctx.children[i+1:]...)
-			return
+			break
 		}
 	}
+
+	if !ctx.deleteIfNoChild || len(ctx.children) > 0 {
+		ctx.m.Unlock()
+		return
+	}
+
+	ctx.m.Unlock()
+
+	ctx.DeleteWithSubContexts()
 }
 
 func (ctx *contextCore) closeObject(obj interface{}, def Definition) {
