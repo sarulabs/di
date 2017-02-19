@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+// contextNastyGetter contains all the functions that are useful
+// to retrieve or create the parent and children of a context.
 type contextLineage struct{}
 
 func (l *contextLineage) getParent(ctx *contextCore) *contextCore {

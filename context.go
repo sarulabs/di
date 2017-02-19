@@ -16,58 +16,58 @@ type context struct {
 	// updated with the name of the Definition.
 	built []string
 
-	logger Logger
+	*contextLineage
+	*contextSlayer
+	*contextGetter
+	*contextNastyGetter
 
-	lineage     *contextLineage
-	slayer      *contextSlayer
-	getter      *contextGetter
-	nastyGetter *contextNastyGetter
+	logger Logger
 }
 
 func (ctx context) Parent() Context {
-	return ctx.lineage.Parent(ctx)
+	return ctx.contextLineage.Parent(ctx)
 }
 
 func (ctx context) SubContext() (Context, error) {
-	return ctx.lineage.SubContext(ctx)
+	return ctx.contextLineage.SubContext(ctx)
 }
 
 func (ctx context) SafeGet(name string) (interface{}, error) {
-	return ctx.getter.SafeGet(ctx, name)
+	return ctx.contextGetter.SafeGet(ctx, name)
 }
 
 func (ctx context) Get(name string) interface{} {
-	return ctx.getter.Get(ctx, name)
+	return ctx.contextGetter.Get(ctx, name)
 }
 
 func (ctx context) Fill(name string, dst interface{}) error {
-	return ctx.getter.Fill(ctx, name, dst)
+	return ctx.contextGetter.Fill(ctx, name, dst)
 }
 
 func (ctx context) NastySafeGet(name string) (interface{}, error) {
-	return ctx.nastyGetter.NastySafeGet(ctx, name)
+	return ctx.contextNastyGetter.NastySafeGet(ctx, name)
 }
 
 func (ctx context) NastyGet(name string) interface{} {
-	return ctx.nastyGetter.NastyGet(ctx, name)
+	return ctx.contextNastyGetter.NastyGet(ctx, name)
 }
 
 func (ctx context) NastyFill(name string, dst interface{}) error {
-	return ctx.nastyGetter.NastyFill(ctx, name, dst)
+	return ctx.contextNastyGetter.NastyFill(ctx, name, dst)
 }
 
 func (ctx context) Delete() {
-	ctx.slayer.Delete(ctx.logger, ctx.contextCore)
+	ctx.contextSlayer.Delete(ctx.logger, ctx.contextCore)
 }
 
 func (ctx context) DeleteWithSubContexts() {
-	ctx.slayer.DeleteWithSubContexts(ctx.logger, ctx.contextCore)
+	ctx.contextSlayer.DeleteWithSubContexts(ctx.logger, ctx.contextCore)
 }
 
 func (ctx context) IsClosed() bool {
-	return ctx.slayer.IsClosed(ctx.contextCore)
+	return ctx.contextSlayer.IsClosed(ctx.contextCore)
 }
 
 func (ctx context) Clean() {
-	ctx.slayer.Clean(ctx.logger, ctx.contextCore)
+	ctx.contextSlayer.Clean(ctx.logger, ctx.contextCore)
 }

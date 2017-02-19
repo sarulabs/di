@@ -6,6 +6,8 @@ import (
 	"runtime/debug"
 )
 
+// contextGetter contains all the functions that are useful
+// to retrieve an object from a context.
 type contextGetter struct{}
 
 func (g *contextGetter) SafeGet(ctx context, name string) (interface{}, error) {
@@ -87,7 +89,7 @@ func (g *contextGetter) buildInThisContext(ctx context, def Definition) (interfa
 }
 
 func (g *contextGetter) getInParent(ctx context, def Definition) (interface{}, error) {
-	p, _ := ctx.lineage.Parent(ctx).(context)
+	p, _ := ctx.contextLineage.Parent(ctx).(context)
 
 	if p.contextCore == nil {
 		return nil, fmt.Errorf(

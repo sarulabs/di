@@ -5,6 +5,8 @@ import (
 	"runtime/debug"
 )
 
+// contextNastyGetter contains all the functions that are useful
+// to delete a context.
 type contextSlayer struct{}
 
 func (s *contextSlayer) Delete(logger Logger, ctx *contextCore) {
