@@ -1,14 +1,5 @@
 package di
 
-// App is the name of the application scope.
-const App = "app"
-
-// Request is the name of the request scope.
-const Request = "request"
-
-// SubRequest is the name of the subrequest scope.
-const SubRequest = "subrequest"
-
 // Definition contains information to build and close an object inside a Context.
 type Definition struct {
 	Name  string
@@ -23,4 +14,18 @@ type Definition struct {
 type Tag struct {
 	Name string
 	Args map[string]string
+}
+
+// DefinitionMap is a collection of Definition ordered by name.
+type DefinitionMap map[string]Definition
+
+// Copy retuns a copy of the DefinitionMap.
+func (m DefinitionMap) Copy() map[string]Definition {
+	defs := map[string]Definition{}
+
+	for name, def := range m {
+		defs[name] = def
+	}
+
+	return defs
 }

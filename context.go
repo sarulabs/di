@@ -1,78 +1,73 @@
 package di
 
-// Context represents a dependency injection container.
-// A Context has a scope and may have a parent with a wider scope
-// and children with a narrower scope.
-// Objects can be retrieved from the Context.
-// If the desired object does not already exist in the Context,
-// it is built thanks to the object Definition.
-// The following attempts to get this object will return the same object.
-type Context interface {
-	// Definition returns the map of the available Definitions ordered by Definition name.
-	// These Definitions represent all the objects that this Context can build.
-	Definitions() map[string]Definition
+// context is the implementation of the Context interface
+type context struct {
+	// contextCore contains the context data.
+	// Serveral contexts can share the same contextCore.
+	// In this case these contexts represent the same entity,
+	// but at a different stage in an object construction.
+	*contextCore
 
-	// Scope returns the Context scope.
-	Scope() string
+	// built contains the name of the Definition being built by this context.
+	// It is used to avoid cycles in object Definitions.
+	// Each time a Context is passed in parameter of the Build function
+	// of a definition, this is in fact a new context.
+	// This context is created with a built attribute
+	// updated with the name of the Definition.
+	built []string
 
-	// Scopes returns the list of available scopes.
-	Scopes() []string
+	logger Logger
 
-	// ParentScopes returns the list of scopes  wider than the Context scope.
-	ParentScopes() []string
+	lineage     *contextLineage
+	slayer      *contextSlayer
+	getter      *contextGetter
+	nastyGetter *contextNastyGetter
+}
 
-	// SubScopes returns the list of scopes narrower than the Context scope.
-	SubScopes() []string
+func (ctx context) Parent() Context {
+	return ctx.lineage.Parent(ctx)
+}
 
-	// Parent returns the parent Context.
-	Parent() Context
+func (ctx context) SubContext() (Context, error) {
+	return ctx.lineage.SubContext(ctx)
+}
 
-	// SubContext creates a new Context in the next subscope
-	// that will have this Container as parent.
-	SubContext() (Context, error)
+func (ctx context) SafeGet(name string) (interface{}, error) {
+	return ctx.getter.SafeGet(ctx, name)
+}
 
-	// SafeGet retrieves an object from the Context.
-	// The object has to belong to this scope or a wider one.
-	// If the object does not already exist, it is created and saved in the Context.
-	// If the object can't be created, it returns an error.
-	SafeGet(name string) (interface{}, error)
+func (ctx context) Get(name string) interface{} {
+	return ctx.getter.Get(ctx, name)
+}
 
-	// Get is similar to SafeGet but it does not return the error.
-	Get(name string) interface{}
+func (ctx context) Fill(name string, dst interface{}) error {
+	return ctx.getter.Fill(ctx, name, dst)
+}
 
-	// Fill is similar to SafeGet but it does not return the object.
-	// Instead it fills the provided object with the value returned by SafeGet.
-	// The provided object must be a pointer to the value returned by SafeGet.
-	Fill(name string, dst interface{}) error
+func (ctx context) NastySafeGet(name string) (interface{}, error) {
+	return ctx.nastyGetter.NastySafeGet(ctx, name)
+}
 
-	// NastySafeGet retrieves an object from the Context, like SafeGet.
-	// The difference is that the object can be retrieved
-	// even if it belongs to a narrower scope.
-	// To do so NastySafeGet creates a subcontext.
-	// When the created object is no longer needed,
-	// it is important to use the Clean method to Delete this subcontext.
-	NastySafeGet(name string) (interface{}, error)
+func (ctx context) NastyGet(name string) interface{} {
+	return ctx.nastyGetter.NastyGet(ctx, name)
+}
 
-	// NastyGet is similar to NastySafeGet but it does not return the error.
-	NastyGet(name string) interface{}
+func (ctx context) NastyFill(name string, dst interface{}) error {
+	return ctx.nastyGetter.NastyFill(ctx, name, dst)
+}
 
-	// NastyFill is similar to NastySafeGet but copies the object in dst instead of returning it.
-	NastyFill(name string, dst interface{}) error
+func (ctx context) Delete() {
+	ctx.slayer.Delete(ctx.logger, ctx.contextCore)
+}
 
-	// Clean deletes the subcontext created by NastySafeGet, NastyGet or NastyFill.
-	Clean()
+func (ctx context) DeleteWithSubContexts() {
+	ctx.slayer.DeleteWithSubContexts(ctx.logger, ctx.contextCore)
+}
 
-	// DeleteWithSubContexts takes all the objects saved in this Context
-	// and calls the Close function of their Definition on them.
-	// It will also call DeleteWithSubContexts on each child and remove its reference in the parent Context.
-	// After deletion, the Context can no longer be used.
-	DeleteWithSubContexts()
+func (ctx context) IsClosed() bool {
+	return ctx.slayer.IsClosed(ctx.contextCore)
+}
 
-	// Delete works like DeleteWithSubContexts but do not delete the subcontexts.
-	// If the Context has subcontexts, it will not be deleted right away.
-	// The deletion only occurs when all the subcontexts have been deleted.
-	Delete()
-
-	// IsClosed returns true if the Context has been deleted.
-	IsClosed() bool
+func (ctx context) Clean() {
+	ctx.slayer.Clean(ctx.logger, ctx.contextCore)
 }

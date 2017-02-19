@@ -111,6 +111,10 @@ func (b *Builder) checkName(name string) error {
 // Set adds a definition for an already build object.
 // The scope used as the Definition scope is the Builder wider scope.
 func (b *Builder) Set(name string, obj interface{}) error {
+	if err := checkScopes(b.scopes); err != nil {
+		return err
+	}
+
 	return b.AddDefinition(Definition{
 		Name:  name,
 		Scope: b.scopes[0],
@@ -123,6 +127,10 @@ func (b *Builder) Set(name string, obj interface{}) error {
 // Build creates a Context in the wider scope
 // with all the current scopes and definitions.
 func (b *Builder) Build() Context {
+	if err := checkScopes(b.scopes); err != nil {
+		return nil
+	}
+
 	defs := b.Definitions()
 
 	for name, def := range defs {
@@ -140,7 +148,6 @@ func (b *Builder) Build() Context {
 
 	return &context{
 		contextCore: &contextCore{
-			logger:      logger,
 			scopes:      b.scopes,
 			scope:       b.scopes[0],
 			definitions: defs,
@@ -148,5 +155,6 @@ func (b *Builder) Build() Context {
 			children:    []*contextCore{},
 			objects:     map[string]interface{}{},
 		},
+		logger: logger,
 	}
 }

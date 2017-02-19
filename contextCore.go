@@ -1,10 +1,6 @@
 package di
 
-import (
-	"fmt"
-	"runtime/debug"
-	"sync"
-)
+import "sync"
 
 // contextCore contains a Context data.
 // But it can not build objects on its own.
@@ -12,10 +8,9 @@ import (
 type contextCore struct {
 	m               sync.Mutex
 	closed          bool
-	logger          Logger
 	scope           string
-	scopes          []string
-	definitions     map[string]Definition
+	scopes          ScopeList
+	definitions     DefinitionMap
 	parent          *contextCore
 	children        []*contextCore
 	nastyChild      *contextCore
@@ -24,13 +19,7 @@ type contextCore struct {
 }
 
 func (ctx *contextCore) Definitions() map[string]Definition {
-	defs := map[string]Definition{}
-
-	for name, def := range ctx.definitions {
-		defs[name] = def
-	}
-
-	return defs
+	return ctx.definitions.Copy()
 }
 
 func (ctx *contextCore) Scope() string {
@@ -38,148 +27,13 @@ func (ctx *contextCore) Scope() string {
 }
 
 func (ctx *contextCore) Scopes() []string {
-	scopes := make([]string, len(ctx.scopes))
-	copy(scopes, ctx.scopes)
-	return scopes
+	return ctx.scopes.Copy()
 }
 
 func (ctx *contextCore) ParentScopes() []string {
-	scopes := ctx.Scopes()
-
-	for i, s := range scopes {
-		if s == ctx.scope {
-			return scopes[:i]
-		}
-	}
-
-	return []string{}
+	return ctx.scopes.ParentScopes(ctx.scope)
 }
 
 func (ctx *contextCore) SubScopes() []string {
-	scopes := ctx.Scopes()
-
-	for i, s := range scopes {
-		if s == ctx.scope {
-			return scopes[i+1:]
-		}
-	}
-
-	return []string{}
-}
-
-func (ctx *contextCore) getParent() *contextCore {
-	ctx.m.Lock()
-	defer ctx.m.Unlock()
-	return ctx.parent
-}
-
-func (ctx *contextCore) Delete() {
-	ctx.m.Lock()
-
-	if len(ctx.children) > 0 {
-		ctx.deleteIfNoChild = true
-		ctx.m.Unlock()
-		return
-	}
-
-	ctx.m.Unlock()
-
-	ctx.DeleteWithSubContexts()
-}
-
-func (ctx *contextCore) DeleteWithSubContexts() {
-	ctx.m.Lock()
-
-	c := &contextCore{
-		children:   make([]*contextCore, len(ctx.children)),
-		nastyChild: ctx.nastyChild,
-		parent:     ctx.parent,
-		objects:    map[string]interface{}{},
-	}
-
-	copy(c.children, ctx.children)
-
-	for name, obj := range ctx.objects {
-		c.objects[name] = obj
-	}
-
-	ctx.children = nil
-	ctx.nastyChild = nil
-	ctx.parent = nil
-	ctx.objects = nil
-	ctx.closed = true
-
-	ctx.m.Unlock()
-
-	ctx.deleteClone(c)
-}
-
-func (ctx *contextCore) deleteClone(c *contextCore) {
-	for _, child := range c.children {
-		child.DeleteWithSubContexts()
-	}
-
-	if c.nastyChild != nil {
-		c.nastyChild.DeleteWithSubContexts()
-	}
-
-	if c.parent != nil {
-		c.parent.removeChild(ctx)
-	}
-
-	for name, obj := range c.objects {
-		ctx.closeObject(obj, ctx.definitions[name])
-	}
-}
-
-func (ctx *contextCore) removeChild(child *contextCore) {
-	ctx.m.Lock()
-
-	for i, c := range ctx.children {
-		if c == child {
-			ctx.children = append(ctx.children[:i], ctx.children[i+1:]...)
-			break
-		}
-	}
-
-	if !ctx.deleteIfNoChild || len(ctx.children) > 0 {
-		ctx.m.Unlock()
-		return
-	}
-
-	ctx.m.Unlock()
-
-	ctx.DeleteWithSubContexts()
-}
-
-func (ctx *contextCore) closeObject(obj interface{}, def Definition) {
-	defer func() {
-		if r := recover(); r != nil {
-			msg := fmt.Sprintf("could not close `%s` err=%s stack=%s", def.Name, r, debug.Stack())
-			ctx.logger.Error(msg)
-		}
-	}()
-
-	if def.Close != nil {
-		def.Close(obj)
-	}
-
-	return
-}
-
-func (ctx *contextCore) IsClosed() bool {
-	ctx.m.Lock()
-	defer ctx.m.Unlock()
-	return ctx.closed
-}
-
-func (ctx *contextCore) Clean() {
-	ctx.m.Lock()
-	child := ctx.nastyChild
-	ctx.nastyChild = nil
-	ctx.m.Unlock()
-
-	if child != nil {
-		child.Delete()
-	}
+	return ctx.scopes.SubScopes(ctx.scope)
 }
