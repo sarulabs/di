@@ -12,11 +12,11 @@ type Logger interface {
 // to write the error on the standard output.
 type BasicLogger struct{}
 
-func (l BasicLogger) Error(args ...interface{}) {
+func (l *BasicLogger) Error(args ...interface{}) {
 	log.Println(args)
 }
 
 // MuteLogger is a Logger that doesn't log anything.
 type MuteLogger struct{}
 
-func (l MuteLogger) Error(args ...interface{}) {}
+func (l *MuteLogger) Error(args ...interface{}) {}

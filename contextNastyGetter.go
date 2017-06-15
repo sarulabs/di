@@ -10,7 +10,7 @@ import (
 // is defined in a narrower scope.
 type contextNastyGetter struct{}
 
-func (g *contextNastyGetter) NastySafeGet(ctx context, name string) (interface{}, error) {
+func (g *contextNastyGetter) NastySafeGet(ctx *context, name string) (interface{}, error) {
 	def, ok := ctx.definitions[name]
 	if !ok {
 		return nil, fmt.Errorf("could not find a Definition for `%s` in the Context", name)
@@ -42,7 +42,7 @@ func (g *contextNastyGetter) NastySafeGet(ctx context, name string) (interface{}
 	return child.NastySafeGet(name)
 }
 
-func (g *contextNastyGetter) addNastyChild(ctx context) (*context, error) {
+func (g *contextNastyGetter) addNastyChild(ctx *context) (*context, error) {
 	child, err := ctx.contextLineage.createChild(ctx)
 	if err != nil {
 		return nil, err
@@ -62,12 +62,12 @@ func (g *contextNastyGetter) addNastyChild(ctx context) (*context, error) {
 	return child, nil
 }
 
-func (g *contextNastyGetter) NastyGet(ctx context, name string) interface{} {
+func (g *contextNastyGetter) NastyGet(ctx *context, name string) interface{} {
 	obj, _ := ctx.NastySafeGet(name)
 	return obj
 }
 
-func (g *contextNastyGetter) NastyFill(ctx context, name string, dst interface{}) error {
+func (g *contextNastyGetter) NastyFill(ctx *context, name string, dst interface{}) error {
 	obj, err := ctx.NastySafeGet(name)
 	if err != nil {
 		return err

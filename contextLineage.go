@@ -15,15 +15,15 @@ func (l *contextLineage) getParent(ctx *contextCore) *contextCore {
 	return ctx.parent
 }
 
-func (l *contextLineage) Parent(ctx context) Context {
-	return context{
+func (l *contextLineage) Parent(ctx *context) Context {
+	return &context{
 		contextCore: l.getParent(ctx.contextCore),
 		built:       ctx.built,
 		logger:      ctx.logger,
 	}
 }
 
-func (l *contextLineage) SubContext(ctx context) (Context, error) {
+func (l *contextLineage) SubContext(ctx *context) (Context, error) {
 	child, err := l.createChild(ctx)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (l *contextLineage) SubContext(ctx context) (Context, error) {
 	return child, nil
 }
 
-func (l *contextLineage) createChild(ctx context) (*context, error) {
+func (l *contextLineage) createChild(ctx *context) (*context, error) {
 	subscopes := ctx.SubScopes()
 
 	if len(subscopes) == 0 {

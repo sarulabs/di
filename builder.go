@@ -143,7 +143,7 @@ func (b *Builder) Build() Context {
 	logger := b.Logger
 
 	if logger == nil {
-		logger = MuteLogger{}
+		logger = &MuteLogger{}
 	}
 
 	return &context{

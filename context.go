@@ -24,50 +24,50 @@ type context struct {
 	logger Logger
 }
 
-func (ctx context) Parent() Context {
+func (ctx *context) Parent() Context {
 	return ctx.contextLineage.Parent(ctx)
 }
 
-func (ctx context) SubContext() (Context, error) {
+func (ctx *context) SubContext() (Context, error) {
 	return ctx.contextLineage.SubContext(ctx)
 }
 
-func (ctx context) SafeGet(name string) (interface{}, error) {
+func (ctx *context) SafeGet(name string) (interface{}, error) {
 	return ctx.contextGetter.SafeGet(ctx, name)
 }
 
-func (ctx context) Get(name string) interface{} {
+func (ctx *context) Get(name string) interface{} {
 	return ctx.contextGetter.Get(ctx, name)
 }
 
-func (ctx context) Fill(name string, dst interface{}) error {
+func (ctx *context) Fill(name string, dst interface{}) error {
 	return ctx.contextGetter.Fill(ctx, name, dst)
 }
 
-func (ctx context) NastySafeGet(name string) (interface{}, error) {
+func (ctx *context) NastySafeGet(name string) (interface{}, error) {
 	return ctx.contextNastyGetter.NastySafeGet(ctx, name)
 }
 
-func (ctx context) NastyGet(name string) interface{} {
+func (ctx *context) NastyGet(name string) interface{} {
 	return ctx.contextNastyGetter.NastyGet(ctx, name)
 }
 
-func (ctx context) NastyFill(name string, dst interface{}) error {
+func (ctx *context) NastyFill(name string, dst interface{}) error {
 	return ctx.contextNastyGetter.NastyFill(ctx, name, dst)
 }
 
-func (ctx context) Delete() {
+func (ctx *context) Delete() {
 	ctx.contextSlayer.Delete(ctx.logger, ctx.contextCore)
 }
 
-func (ctx context) DeleteWithSubContexts() {
+func (ctx *context) DeleteWithSubContexts() {
 	ctx.contextSlayer.DeleteWithSubContexts(ctx.logger, ctx.contextCore)
 }
 
-func (ctx context) IsClosed() bool {
+func (ctx *context) IsClosed() bool {
 	return ctx.contextSlayer.IsClosed(ctx.contextCore)
 }
 
-func (ctx context) Clean() {
+func (ctx *context) Clean() {
 	ctx.contextSlayer.Clean(ctx.logger, ctx.contextCore)
 }
