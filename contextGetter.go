@@ -116,6 +116,7 @@ func (g *contextGetter) build(ctx context, def Definition) (obj interface{}, err
 	obj, err = def.Build(&context{
 		contextCore: ctx.contextCore,
 		built:       append(ctx.built, def.Name),
+		logger:      ctx.logger,
 	})
 	return
 }

@@ -19,6 +19,7 @@ func (l *contextLineage) Parent(ctx context) Context {
 	return context{
 		contextCore: l.getParent(ctx.contextCore),
 		built:       ctx.built,
+		logger:      ctx.logger,
 	}
 }
 
@@ -59,7 +60,7 @@ func (l *contextLineage) createChild(ctx context) (*context, error) {
 			nastyChild:  nil,
 			objects:     map[string]interface{}{},
 		},
-		logger: ctx.logger,
 		built:  ctx.built,
+		logger: ctx.logger,
 	}, nil
 }

@@ -27,6 +27,7 @@ func (g *contextNastyGetter) NastySafeGet(ctx context, name string) (interface{}
 	child := &context{
 		contextCore: nastyChild,
 		built:       ctx.built,
+		logger:      ctx.logger,
 	}
 
 	if child.contextCore != nil {
