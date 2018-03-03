@@ -19,7 +19,7 @@ type Tag struct {
 // DefinitionMap is a collection of Definition ordered by name.
 type DefinitionMap map[string]Definition
 
-// Copy retuns a copy of the DefinitionMap.
+// Copy returns a copy of the DefinitionMap.
 func (m DefinitionMap) Copy() map[string]Definition {
 	defs := map[string]Definition{}
 

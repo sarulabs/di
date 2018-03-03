@@ -19,7 +19,7 @@ func (l ScopeList) Copy() ScopeList {
 	return scopes
 }
 
-// ParentScopes retuns the scopes before the one given as parameter.
+// ParentScopes returns the scopes before the one given as parameter.
 func (l ScopeList) ParentScopes(scope string) ScopeList {
 	scopes := l.Copy()
 
@@ -32,7 +32,7 @@ func (l ScopeList) ParentScopes(scope string) ScopeList {
 	return ScopeList{}
 }
 
-// SubScopes retuns the scopes after the one given as parameter.
+// SubScopes returns the scopes after the one given as parameter.
 func (l ScopeList) SubScopes(scope string) ScopeList {
 	scopes := l.Copy()
 
