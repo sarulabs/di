@@ -2,13 +2,17 @@
 
 [![Build Status](https://travis-ci.org/sarulabs/di.svg?branch=master)](https://travis-ci.org/sarulabs/di)
 [![GoDoc](https://godoc.org/github.com/sarulabs/di?status.svg)](http://godoc.org/github.com/sarulabs/di)
-[![Coverage](http://gocover.io/_badge/github.com/sarulabs/di)](http://gocover.io/github.com/sarulabs/di)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/5af97cbfd6e4fe7257e3/test_coverage)](https://codeclimate.com/github/sarulabs/di/test_coverage)
+[![Maintainability](https://api.codeclimate.com/v1/badges/5af97cbfd6e4fe7257e3/maintainability)](https://codeclimate.com/github/sarulabs/di/maintainability)
 [![codebeat](https://codebeat.co/badges/d6095401-7dcf-4f63-ab75-7fac5c6aa898)](https://codebeat.co/projects/github-com-sarulabs-di)
 [![goreport](https://goreportcard.com/badge/github.com/sarulabs/di)](https://goreportcard.com/report/github.com/sarulabs/di)
 
+---
+
+![DI Logo](https://raw.githubusercontent.com/sarulabs/assets/master/di/logo.png)
 
 
-Dependency injection container for golang.
+Dependency injection container for go programs (golang).
 
 If you don't know what a dependency injection container is, you may want to read this article before :
 
@@ -291,64 +295,84 @@ Here is an example that shows how DI can be used to get a database connection in
 package main
 
 import (
-    "database/sql"
-    "net/http"
+	"context"
+	"database/sql"
+	"net/http"
 
-    "github.com/sarulabs/di"
+	"github.com/sarulabs/di"
 
-    _ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
-    app := createApp()
+	app := createApp()
 
-    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        // Create a request and delete it once it has been handled.
-        // Deleting the request will close the database connection.
-        request, _ := app.SubContext()
-        defer request.Delete()
-        handler(w, r, request)
-    })
+	defer app.Delete()
 
-    http.ListenAndServe(":8080", nil)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Create a request and delete it once it has been handled.
+		// Deleting the request will close the connection.
+		request, _ := app.SubContext()
+		defer request.Delete()
+
+		handler(w, r, request)
+	})
+
+	http.ListenAndServe(":8080", nil)
 }
 
 func createApp() di.Context {
-    builder, _ := di.NewBuilder()
+	builder, _ := di.NewBuilder()
 
-    // Define the database configuration.
-    builder.Set("dsn", "user:password@/dbname")
+	// use a logger or you will lose the errors
+	// that can happen during the creation of the objects
+	builder.Logger = &di.BasicLogger{}
 
-    // Define the connection in the Request scope.
-    // Each request will use a different connection.
-    builder.AddDefinition(di.Definition{
-        Name:  "mysql",
-        Scope: di.Request,
-        Build: func(ctx di.Context) (interface{}, error) {
-            dsn := ctx.Get("dsn").(string)
-            return sql.Open("mysql", dsn)
-        },
-        Close: func(obj interface{}) {
-            obj.(*sql.DB).Close()
-        },
-    })
+	// Define the connection pool in the App scope.
+	// There will be one for the whole application.
+	builder.AddDefinition(di.Definition{
+		Name:  "mysql-pool",
+		Scope: di.App,
+		Build: func(ctx di.Context) (interface{}, error) {
+			db, err := sql.Open("mysql", "user:password@/")
+			db.SetMaxOpenConns(1)
+			return db, err
+		},
+		Close: func(obj interface{}) {
+			obj.(*sql.DB).Close()
+		},
+	})
 
-    // Returns the app Context.
-    return builder.Build()
+	// Define the connection in the Request scope.
+	// Each request will use its own connection.
+	builder.AddDefinition(di.Definition{
+		Name:  "mysql",
+		Scope: di.Request,
+		Build: func(ctx di.Context) (interface{}, error) {
+			pool := ctx.Get("mysql-pool").(*sql.DB)
+			return pool.Conn(context.Background())
+		},
+		Close: func(obj interface{}) {
+			obj.(*sql.Conn).Close()
+		},
+	})
+
+	// Returns the app Context.
+	return builder.Build()
 }
 
 func handler(w http.ResponseWriter, r *http.Request, ctx di.Context) {
-    // Retrieve the connection.
-    db := ctx.Get("mysql").(*sql.DB)
+	// Retrieve the connection.
+	conn := ctx.Get("mysql").(*sql.Conn)
 
-    var variable, value string
+	var variable, value string
 
-    row := db.QueryRow("SHOW STATUS WHERE `variable_name` = 'Threads_connected'")
-    row.Scan(&variable, &value)
+	row := conn.QueryRowContext(context.Background(), "SHOW STATUS WHERE `variable_name` = 'Threads_connected'")
+	row.Scan(&variable, &value)
 
-    // Display how many connection are opened.
-    // As the connection is closed when the request is deleted,
-    // the number should not increase after each request.
-    w.Write([]byte(variable + " : " + value))
+	// Display how many connections are opened.
+	// As the connection is closed when the request is deleted,
+	// the value should not be be higher than the number set with db.SetMaxOpenConns(1).
+	w.Write([]byte(variable + ": " + value))
 }
 ```
