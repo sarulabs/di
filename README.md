@@ -16,7 +16,7 @@ Dependency injection container for go programs (golang).
 
 If you don't know what a dependency injection container is, you may want to read this article before :
 
-http://fabien.potencier.org/do-you-need-a-dependency-injection-container.html
+https://www.sarulabs.com/post/2/2018-06-12/what-is-a-dependency-injection-container-and-why-use-one.html
 
 
 ## Basic usage
@@ -34,7 +34,7 @@ di.Definition{
 }
 ```
 
-The definition can be added to a Builder with the `AddDefinition` method :
+The definition can be added to a Builder with the `AddDefinition` method:
 
 ```go
 builder := di.NewBuilder()
@@ -126,16 +126,16 @@ builder.AddDefinition(di.Definition{
     },
 })
 
-// Build creates a Context in the wider scope.
+// Build creates a Context in the wider scope (App).
 app := builder.Build()
 
-// app Context can get children in the Request scope.
+// The App Context can create sub-contexts in the Request scope.
 req1, _ := app.SubContext()
 req2, _ := app.SubContext()
 
 // app-object can be retrieved from the three contexts.
 // The retrieved objects are the same : o1 == o2 == o3.
-// The object is stored in the app context.
+// The object is stored in the App Context.
 o1 := app.Get("app-object").(*MyObject)
 o2 := req1.Get("app-object").(*MyObject)
 o3 := req2.Get("app-object").(*MyObject)
@@ -167,7 +167,7 @@ di.Definition{
 This function is called when the `Delete` method is called on a Context.
 
 ```go
-// Create the context.
+// Create the Context.
 app := builder.Build()
 
 // Retrieve an object.
@@ -177,7 +177,13 @@ obj := app.Get("my-object").(*MyObject)
 app.Delete()
 ```
 
-Delete closes all the objects stored in the Context. This means objects with the same scope created by this Context or one of its children. It will also call the Delete method on all the Context children. Once the Delete method has been called, the Context becomes unusable.
+Delete closes all the objects stored in the Context. Once a Context has been deleted, it becomes unusable.
+
+There are actually two delete methods: `Delete` and `DeleteWithSubContexts`
+
+`DeleteWithSubContexts` deletes the Context children and then the Context right away. `Delete` is a softer approach. It does not delete the Context children. Actually it does not delete the Context as long as it still has a child alive. So you have to call `Delete` on all the children to delete the Context.
+
+You probably want to use `Delete` and close the children manually. `DeleteWithSubContexts` can cause errors if the parent is deleted while its children are still used.
 
 The `database example` at the end of this documentation is a good example of how you can use Delete.
 
@@ -286,6 +292,8 @@ builder.Logger = di.BasicLogger{}
 
 Panic in Build and Close functions of a Definition are recovered. In particular that allows you to use the `Get` method in a Build function.
 
+Using `Get` in a Build function instead of `SafeGet` is way more practical. But it also can make debugging a nightmare. Be sure to define a Logger in the Builder if you want to be able to trace the errors.
+
 
 ## Database example
 
@@ -324,8 +332,8 @@ func main() {
 func createApp() di.Context {
 	builder, _ := di.NewBuilder()
 
-	// use a logger or you will lose the errors
-	// that can happen during the creation of the objects
+	// Use a logger or you will lose the errors
+	// that can happen during the creation of the objects.
 	builder.Logger = &di.BasicLogger{}
 
 	// Define the connection pool in the App scope.

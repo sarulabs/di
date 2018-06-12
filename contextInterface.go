@@ -68,9 +68,10 @@ type Context interface {
 	// After deletion, the Context can no longer be used.
 	DeleteWithSubContexts()
 
-	// Delete works like DeleteWithSubContexts but do not delete the subcontexts.
-	// If the Context has subcontexts, it will not be deleted right away.
+	// Delete works like DeleteWithSubContexts if the Context does not have any child.
+	// But if the Context has subcontexts, it will not be deleted right away.
 	// The deletion only occurs when all the subcontexts have been deleted.
+	// So you have to call Delete or DeleteWithSubContexts on all the subcontexts.
 	Delete()
 
 	// IsClosed returns true if the Context has been deleted.
