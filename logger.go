@@ -13,7 +13,7 @@ type Logger interface {
 type BasicLogger struct{}
 
 func (l *BasicLogger) Error(args ...interface{}) {
-	log.Println(args)
+	log.Println(args...)
 }
 
 // MuteLogger is a Logger that doesn't log anything.
