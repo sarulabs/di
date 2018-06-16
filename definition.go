@@ -1,10 +1,10 @@
 package di
 
-// Definition contains information to build and close an object inside a Context.
+// Definition contains information to build and close an object inside a Container.
 type Definition struct {
 	Name  string
 	Scope string
-	Build func(ctx Context) (interface{}, error)
+	Build func(ctn Container) (interface{}, error)
 	Close func(obj interface{})
 	Tags  []Tag
 }

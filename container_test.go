@@ -21,18 +21,18 @@ func TestCycleError(t *testing.T) {
 
 	b.AddDefinition(Definition{
 		Name: "o1",
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &nestedMockObject{
-				Object: ctx.Get("o2").(*nestedMockObject).Object,
+				Object: ctn.Get("o2").(*nestedMockObject).Object,
 			}, nil
 		},
 	})
 
 	b.AddDefinition(Definition{
 		Name: "o2",
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &nestedMockObject{
-				Object: ctx.Get("o1").(*nestedMockObject).Object,
+				Object: ctn.Get("o1").(*nestedMockObject).Object,
 			}, nil
 		},
 	})
@@ -50,7 +50,7 @@ func TestRace(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: App,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -64,9 +64,9 @@ func TestRace(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "nested",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &nestedMockObject{
-				Object: ctx.Get("object").(*mockObject),
+				Object: ctn.Get("object").(*mockObject),
 			}, nil
 		},
 		Close: func(obj interface{}) {
@@ -83,7 +83,7 @@ func TestRace(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		go func() {
-			request, _ := app.SubContext()
+			request, _ := app.SubContainer()
 			defer request.Delete()
 
 			request.Get("instance")
@@ -94,7 +94,7 @@ func TestRace(t *testing.T) {
 
 			for j := 0; j < 10; j++ {
 				go func() {
-					subrequest, _ := request.SubContext()
+					subrequest, _ := request.SubContainer()
 					defer subrequest.Delete()
 
 					subrequest.Get("instance")

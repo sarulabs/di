@@ -45,7 +45,7 @@ A Definition contains at least the `Name` of the object and a `Build` function t
 ```go
 di.Definition{
     Name: "my-object",
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return &MyObject{}, nil
     },
 }
@@ -54,11 +54,11 @@ di.Definition{
 The definition can be added to a Builder with the `AddDefinition` method:
 
 ```go
-builder := di.NewBuilder()
+builder, _ := di.NewBuilder()
 
 builder.AddDefinition(di.Definition{
     Name: "my-object",
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return &MyObject{}, nil
     },
 })
@@ -67,26 +67,26 @@ builder.AddDefinition(di.Definition{
 
 ## Object retrieval
 
-Once the definitions have been added to a Builder, the Builder can generate a Context. This Context will provide the objects defined in the Builder.
+Once the definitions have been added to a Builder, the Builder can generate a Container. This Container will provide the objects defined in the Builder.
 
 ```go
-ctx := builder.Build()
-obj := ctx.Get("my-object").(*MyObject)
+ctn := builder.Build()
+obj := ctn.Get("my-object").(*MyObject)
 ```
 
-The objects in a Context are singletons. You will retrieve the exact same object every time you call the `Get` method on the same Context. The `Build` function will only be called once.
+The objects in a Container are singletons. You will retrieve the exact same object every time you call the `Get` method on the same Container. The `Build` function will only be called once.
 
 
 ## Nested definition
 
-The `Build` function can also call the `Get` method of the Context. That allows to build objects that depend on other objects defined in the Context.
+The `Build` function can also call the `Get` method of the Container. That allows to build objects that depend on other objects defined in the Container.
 
 ```go
 di.Definition{
     Name: "nested-object",
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return &MyNestedObject{
-            Object: ctx.Get("my-object").(*MyObject),
+            Object: ctn.Get("my-object").(*MyObject),
         }, nil
     },
 }
@@ -103,7 +103,7 @@ Definitions can also have a scope. They can be useful in request based applicati
 di.Definition{
     Name: "my-object",
     Scope: di.Request,
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return &MyObject{}, nil
     },
 }
@@ -117,7 +117,7 @@ builder, err := di.NewBuilder(di.App, di.Request)
 
 Scopes are defined from the widest to the narrowest. If no scope is given to `NewBuilder`, it is created with the three default scopes: `di.App`, `di.Request` and `di.SubRequest`. These scopes should be enough almost all the time.
 
-Contexts created by the Builder belongs to one of these scopes. A Context may have a parent with a wider scope and children with a narrower scope. A Context is only able to build objects from its own scope, but it can retrieve objects with a wider scope from its parent Context.
+Containers created by the Builder belongs to one of these scopes. A Container may have a parent with a wider scope and children with a narrower scope. A Container is only able to build objects from its own scope, but it can retrieve objects with a wider scope from its parent Container.
 
 If a Definition does not have a scope, the widest scope will be used.
 
@@ -129,7 +129,7 @@ builder, _ := di.NewBuilder()
 builder.AddDefinition(di.Definition{
     Name: "app-object",
     Scope: di.App,
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return &MyObject{}, nil
     },
 })
@@ -138,21 +138,21 @@ builder.AddDefinition(di.Definition{
 builder.AddDefinition(di.Definition{
     Name: "request-object",
     Scope: di.Request,
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return &MyObject{}, nil
     },
 })
 
-// Build creates a Context in the widest scope (App).
+// Build creates a Container in the widest scope (App).
 app := builder.Build()
 
-// The App Context can create sub-contexts in the Request scope.
-req1, _ := app.SubContext()
-req2, _ := app.SubContext()
+// The App Container can create sub-containers in the Request scope.
+req1, _ := app.SubContainer()
+req2, _ := app.SubContainer()
 
-// app-object can be retrieved from the three contexts.
+// app-object can be retrieved from the three containers.
 // The retrieved objects are the same: o1 == o2 == o3.
-// The object is stored in the App Context.
+// The object is stored in the App Container.
 o1 := app.Get("app-object").(*MyObject)
 o2 := req1.Get("app-object").(*MyObject)
 o3 := req2.Get("app-object").(*MyObject)
@@ -164,7 +164,7 @@ o5 := req2.Get("request-object").(*MyObject)
 ```
 
 
-## Context deletion
+## Container deletion
 
 A definition can also have a `Close` function.
 
@@ -172,7 +172,7 @@ A definition can also have a `Close` function.
 di.Definition{
     Name: "my-object",
     Scope: di.App,
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return &MyObject{}, nil
     },
     Close: func(obj interface{}) {
@@ -181,26 +181,26 @@ di.Definition{
 }
 ```
 
-This function is called when the `Delete` method is called on a Context.
+This function is called when the `Delete` method is called on a Container.
 
 ```go
-// Create the Context.
+// Create the Container.
 app := builder.Build()
 
 // Retrieve an object.
 obj := app.Get("my-object").(*MyObject)
 
-// Delete the Context, the Close function will be called on obj.
+// Delete the Container, the Close function will be called on obj.
 app.Delete()
 ```
 
-Delete closes all the objects stored in the Context. Once a Context has been deleted, it becomes unusable.
+Delete closes all the objects stored in the Container. Once a Container has been deleted, it becomes unusable.
 
-There are actually two delete methods: `Delete` and `DeleteWithSubContexts`
+There are actually two delete methods: `Delete` and `DeleteWithSubContainers`
 
-`DeleteWithSubContexts` deletes the Context children and then the Context right away. `Delete` is a softer approach. It does not delete the Context children. Actually it does not delete the Context as long as it still has a child alive. So you have to call `Delete` on all the children to delete the Context.
+`DeleteWithSubContainers` deletes the Container children and then the Container right away. `Delete` is a softer approach. It does not delete the Container children. Actually it does not delete the Container as long as it still has a child alive. So you have to call `Delete` on all the children to delete the Container.
 
-You probably want to use `Delete` and close the children manually. `DeleteWithSubContexts` can cause errors if the parent is deleted while its children are still used.
+You probably want to use `Delete` and close the children manually. `DeleteWithSubContainers` can cause errors if the parent is deleted while its children are still used.
 
 The database example at the end of this documentation is a good example of how you can use Delete.
 
@@ -219,7 +219,7 @@ is the same as:
 builder.AddDefinition(di.Definition{
     Name: "my-object",
     Scope: di.App,
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return object, nil
     },
 })
@@ -234,11 +234,11 @@ Get returns an interface that can be cast afterward. If the item can not be crea
 
 ```go
 // It can be used safely.
-objectInterface := ctx.Get("my-object")
+objectInterface := ctn.Get("my-object")
 object, ok := objectInterface.(*MyObject)
 
 // Or if you do not care about panicking...
-object := ctx.Get("my-object").(*MyObject)
+object := ctn.Get("my-object").(*MyObject)
 ```
 
 
@@ -247,25 +247,25 @@ object := ctx.Get("my-object").(*MyObject)
 Get is fine to retrieve an object, but it does not give you any information if something goes wrong. SafeGet works like Get but also returns an error. It can be used to find why an object could not be created.
 
 ```go
-objectInterface, err := ctx.SafeGet("my-object")
+objectInterface, err := ctn.SafeGet("my-object")
 ```
 
 
 ## Fill
 
-The third method to retrieve an object is Fill. It returns an error if something goes wrong like SafeGet, but it may be more practical in some situations.
+The third method to retrieve an object is Fill. It returns an error if something goes wrong like SafeGet, but it may be more practical in some situations. It uses reflection to fill the given object, so it is slower than SafeGet
 
 ```go
 var object *MyObject
-err = ctx.Fill("my-object", &MyObject)
+err = ctn.Fill("my-object", &MyObject)
 ```
 
 
 # Unscoped retrieval
 
-The previous methods can retrieve an object defined in the same scope or a wider one. If you need an object that is defined in a narrower scope, you need to create a sub-context to retrieve it. It is logical but not always very practical.
+The previous methods can retrieve an object defined in the same scope or a wider one. If you need an object defined in a narrower scope, you need to create a sub-container to retrieve it. It is logical but not always very practical.
 
-`UnscopedGet`, `UnscopedSafeGet` and `UnscopedFill` work like `Get`, `SafeGet` and `Fill` but can retrieve objects defined in a narrower scope. To do so they generate sub-contexts that can only be accessed by these three methods. To remove these contexts without deleting the current context, you can call the `Clean` method.
+`UnscopedGet`, `UnscopedSafeGet` and `UnscopedFill` work like `Get`, `SafeGet` and `Fill` but can retrieve objects defined in a narrower scope. To do so they generate sub-containers that can only be accessed by these three methods. To remove these containers without deleting the current container, you can call the `Clean` method.
 
 ```go
 builder, _ := di.NewBuilder()
@@ -273,7 +273,7 @@ builder, _ := di.NewBuilder()
 builder.AddDefinition(di.Definition{
     Name: "request-object",
     Scope: di.Request,
-    Build: func(ctx di.Context) (interface{}, error) {
+    Build: func(ctn di.Container) (interface{}, error) {
         return &MyObject{}, nil
     },
     Close: func(obj interface{}) {
@@ -295,7 +295,7 @@ app.Clean()
 
 # Logger
 
-If a Logger is set in the Builder when the Context is created, it will be used to log errors that might happen when an object is retrieved or closed. It is particularly useful if you use the `Get` method that does not return an error.
+If a Logger is set in the Builder when the Container is created, it will be used to log errors that might happen when an object is retrieved or closed. It is particularly useful if you use the `Get` method that does not return an error.
 
 ```go
 builder, _ := di.NewBuilder()
@@ -335,7 +335,7 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Create a request and delete it once it has been handled.
 		// Deleting the request will close the connection.
-		request, _ := app.SubContext()
+		request, _ := app.SubContainer()
 		defer request.Delete()
 
 		handler(w, r, request)
@@ -344,7 +344,7 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-func createApp() di.Context {
+func createApp() di.Container {
 	builder, _ := di.NewBuilder()
 
 	// Use a logger or you will lose the errors
@@ -356,7 +356,7 @@ func createApp() di.Context {
 	builder.AddDefinition(di.Definition{
 		Name:  "mysql-pool",
 		Scope: di.App,
-		Build: func(ctx di.Context) (interface{}, error) {
+		Build: func(ctn di.Container) (interface{}, error) {
 			db, err := sql.Open("mysql", "user:password@/")
 			db.SetMaxOpenConns(1)
 			return db, err
@@ -371,8 +371,8 @@ func createApp() di.Context {
 	builder.AddDefinition(di.Definition{
 		Name:  "mysql",
 		Scope: di.Request,
-		Build: func(ctx di.Context) (interface{}, error) {
-			pool := ctx.Get("mysql-pool").(*sql.DB)
+		Build: func(ctn di.Container) (interface{}, error) {
+			pool := ctn.Get("mysql-pool").(*sql.DB)
 			return pool.Conn(context.Background())
 		},
 		Close: func(obj interface{}) {
@@ -380,17 +380,17 @@ func createApp() di.Context {
 		},
 	})
 
-	// Returns the app Context.
+	// Returns the app Container.
 	return builder.Build()
 }
 
-func handler(w http.ResponseWriter, r *http.Request, ctx di.Context) {
+func handler(w http.ResponseWriter, r *http.Request, ctn di.Container) {
 	// Retrieve the connection.
-	conn := ctx.Get("mysql").(*sql.Conn)
+	conn := ctn.Get("mysql").(*sql.Conn)
 
 	var variable, value string
 
-	row := conn.QueryRowContext(context.Background(), "SHOW STATUS WHERE `variable_name` = 'Threads_connected'")
+	row := conn.QueryRowContainer(context.Background(), "SHOW STATUS WHERE `variable_name` = 'Threads_connected'")
 	row.Scan(&variable, &value)
 
 	// Display how many connections are opened.

@@ -12,7 +12,7 @@ func TestClean(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: SubRequest,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -40,7 +40,7 @@ func TestDelete(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj1",
 		Scope: App,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 	})
@@ -48,13 +48,13 @@ func TestDelete(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj2",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 	})
 
 	app := b.Build()
-	request, _ := app.SubContext()
+	request, _ := app.SubContainer()
 
 	assert.False(t, app.IsClosed())
 	assert.False(t, request.IsClosed())
@@ -70,13 +70,13 @@ func TestDelete(t *testing.T) {
 	assert.True(t, request.IsClosed())
 }
 
-func TestDeleteWithSubContexts(t *testing.T) {
+func TestDeleteWithSubContainers(t *testing.T) {
 	b, _ := NewBuilder()
 
 	b.AddDefinition(Definition{
 		Name:  "obj1",
 		Scope: App,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -90,7 +90,7 @@ func TestDeleteWithSubContexts(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj2",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -104,7 +104,7 @@ func TestDeleteWithSubContexts(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj3",
 		Scope: SubRequest,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {
@@ -118,14 +118,14 @@ func TestDeleteWithSubContexts(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "obj4",
 		Scope: SubRequest,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 	})
 
 	app := b.Build()
-	request, _ := app.SubContext()
-	subrequest, _ := request.SubContext()
+	request, _ := app.SubContainer()
+	subrequest, _ := request.SubContainer()
 
 	assert.False(t, request.IsClosed())
 	assert.False(t, subrequest.IsClosed())
@@ -135,7 +135,7 @@ func TestDeleteWithSubContexts(t *testing.T) {
 	obj3 := subrequest.Get("obj3").(*mockObject)
 	_ = subrequest.Get("obj4").(*mockObject)
 
-	request.DeleteWithSubContexts()
+	request.DeleteWithSubContainers()
 
 	assert.False(t, obj1.Closed)
 	assert.True(t, obj2.Closed)
@@ -156,10 +156,10 @@ func TestDeleteWithSubContexts(t *testing.T) {
 	_, err = subrequest.SafeGet("obj3")
 	assert.NotNil(t, err, "should not be able to create object from the closed subrequest context")
 
-	_, err = request.SubContext()
+	_, err = request.SubContainer()
 	assert.NotNil(t, err, "should not be able to create a subcontext from a closed context")
 
-	app.DeleteWithSubContexts()
+	app.DeleteWithSubContainers()
 
 	assert.True(t, obj1.Closed)
 
@@ -174,7 +174,7 @@ func TestClosePanic(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: App,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 		Close: func(obj interface{}) {

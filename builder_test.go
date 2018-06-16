@@ -11,10 +11,10 @@ func TestNewBuilder(t *testing.T) {
 	var err error
 
 	_, err = NewBuilder("app", "")
-	assert.NotNil(t, err, "should not be able to create a ContextManager with an empty scope")
+	assert.NotNil(t, err, "should not be able to create a ContainerManager with an empty scope")
 
 	_, err = NewBuilder("app", "request", "app", "subrequest")
-	assert.NotNil(t, err, "should not be able to create a ContextManager with two identical scopes")
+	assert.NotNil(t, err, "should not be able to create a ContainerManager with two identical scopes")
 
 	b, err = NewBuilder("a", "b", "c")
 	assert.Nil(t, err)
@@ -26,12 +26,12 @@ func TestDefinitions(t *testing.T) {
 
 	def1 := Definition{
 		Name:  "o1",
-		Build: func(ctx Context) (interface{}, error) { return nil, nil },
+		Build: func(ctn Container) (interface{}, error) { return nil, nil },
 	}
 
 	def2 := Definition{
 		Name:  "o2",
-		Build: func(ctx Context) (interface{}, error) { return nil, nil },
+		Build: func(ctn Container) (interface{}, error) { return nil, nil },
 	}
 
 	b.AddDefinition(def1)
@@ -49,7 +49,7 @@ func TestIsDefined(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "name",
 		Scope: App,
-		Build: func(ctx Context) (interface{}, error) { return nil, nil },
+		Build: func(ctn Container) (interface{}, error) { return nil, nil },
 	})
 
 	assert.True(t, b.IsDefined("name"))
@@ -61,7 +61,7 @@ func TestAddDefinitionErrors(t *testing.T) {
 
 	var err error
 
-	buildFunc := func(ctx Context) (interface{}, error) { return nil, nil }
+	buildFunc := func(ctn Container) (interface{}, error) { return nil, nil }
 
 	err = b.AddDefinition(Definition{Name: "name", Scope: App, Build: buildFunc})
 	assert.Nil(t, err)
@@ -103,12 +103,12 @@ func TestSet(t *testing.T) {
 }
 
 func TestBuild(t *testing.T) {
-	ctx := (&Builder{}).Build()
-	assert.Nil(t, ctx, "should have at least one scope to use Build")
+	ctn := (&Builder{}).Build()
+	assert.Nil(t, ctn, "should have at least one scope to use Build")
 
 	b, _ := NewBuilder()
 
-	buildFn := func(ctx Context) (interface{}, error) { return nil, nil }
+	buildFn := func(ctn Container) (interface{}, error) { return nil, nil }
 
 	def1 := Definition{
 		Name:  "o1",

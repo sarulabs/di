@@ -6,19 +6,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestContextDefinition(t *testing.T) {
+func TestContainerDefinition(t *testing.T) {
 	b, _ := NewBuilder()
 
 	def1 := Definition{
 		Name: "o1",
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 	}
 
 	def2 := Definition{
 		Name: "o2",
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 	}
@@ -34,33 +34,33 @@ func TestContextDefinition(t *testing.T) {
 	assert.Equal(t, "o2", defs["o2"].Name)
 }
 
-func TestContextScope(t *testing.T) {
+func TestContainerScope(t *testing.T) {
 	b, _ := NewBuilder()
 	app := b.Build()
-	request, _ := app.SubContext()
-	subrequest, _ := request.SubContext()
+	request, _ := app.SubContainer()
+	subrequest, _ := request.SubContainer()
 
 	assert.Equal(t, App, app.Scope())
 	assert.Equal(t, Request, request.Scope())
 	assert.Equal(t, SubRequest, subrequest.Scope())
 }
 
-func TestContextParentScopes(t *testing.T) {
+func TestContainerParentScopes(t *testing.T) {
 	b, _ := NewBuilder()
 	app := b.Build()
-	request, _ := app.SubContext()
-	subrequest, _ := request.SubContext()
+	request, _ := app.SubContainer()
+	subrequest, _ := request.SubContainer()
 
 	assert.Empty(t, app.ParentScopes())
 	assert.Equal(t, []string{App}, request.ParentScopes())
 	assert.Equal(t, []string{App, Request}, subrequest.ParentScopes())
 }
 
-func TestContextSubScopes(t *testing.T) {
+func TestContainerSubScopes(t *testing.T) {
 	b, _ := NewBuilder()
 	app := b.Build()
-	request, _ := app.SubContext()
-	subrequest, _ := request.SubContext()
+	request, _ := app.SubContainer()
+	subrequest, _ := request.SubContainer()
 
 	assert.Equal(t, []string{Request, SubRequest}, app.SubScopes())
 	assert.Equal(t, []string{SubRequest}, request.SubScopes())

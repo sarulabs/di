@@ -5,9 +5,9 @@ import (
 	"fmt"
 )
 
-// Builder is the only way to create a working Context.
+// Builder is the only way to create a working Container.
 // The scopes and object definitions are set in the Builder
-// that can create a Context based on these information.
+// that can create a Container based on this information.
 type Builder struct {
 	Logger      Logger
 	definitions map[string]Definition
@@ -17,7 +17,7 @@ type Builder struct {
 // NewBuilder is the only way to create a working Builder.
 // It initializes the Builder with a list of scopes.
 // The scope are ordered from the wider to the narrower.
-// If no scope is provided, the default scopes are used :
+// If no scope is provided, the default scopes are used:
 // [App, Request, SubRequest]
 func NewBuilder(scopes ...string) (*Builder, error) {
 	if len(scopes) == 0 {
@@ -58,7 +58,7 @@ func (b *Builder) Scopes() []string {
 	return scopes
 }
 
-// Definitions returs a map with the objects definitions added with the AddDefinition method.
+// Definitions returns a map with the objects definitions added with the AddDefinition method.
 // The key of the map is the name of the Definition.
 func (b *Builder) Definitions() map[string]Definition {
 	defs := map[string]Definition{}
@@ -70,7 +70,7 @@ func (b *Builder) Definitions() map[string]Definition {
 	return defs
 }
 
-// IsDefined returns true if there is already a definition with the given name.
+// IsDefined returns true if there is a definition with the given name.
 func (b *Builder) IsDefined(name string) bool {
 	_, ok := b.definitions[name]
 	return ok
@@ -118,15 +118,15 @@ func (b *Builder) Set(name string, obj interface{}) error {
 	return b.AddDefinition(Definition{
 		Name:  name,
 		Scope: b.scopes[0],
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return obj, nil
 		},
 	})
 }
 
-// Build creates a Context in the wider scope
+// Build creates a Container in the wider scope
 // with all the current scopes and definitions.
-func (b *Builder) Build() Context {
+func (b *Builder) Build() Container {
 	if err := checkScopes(b.scopes); err != nil {
 		return nil
 	}
@@ -146,13 +146,13 @@ func (b *Builder) Build() Context {
 		logger = &MuteLogger{}
 	}
 
-	return &context{
-		contextCore: &contextCore{
+	return &container{
+		containerCore: &containerCore{
 			scopes:      b.scopes,
 			scope:       b.scopes[0],
 			definitions: defs,
 			parent:      nil,
-			children:    []*contextCore{},
+			children:    []*containerCore{},
 			objects:     map[string]interface{}{},
 		},
 		logger: logger,

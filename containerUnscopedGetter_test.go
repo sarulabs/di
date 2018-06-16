@@ -12,7 +12,7 @@ func TestUnscopedSafeGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "request-object",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{Closed: true}, nil
 		},
 	})
@@ -20,9 +20,9 @@ func TestUnscopedSafeGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "subrequest-object",
 		Scope: SubRequest,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &nestedMockObject{
-				Object: ctx.Get("request-object").(*mockObject),
+				Object: ctn.Get("request-object").(*mockObject),
 			}, nil
 		},
 	})
@@ -53,7 +53,7 @@ func TestUnscopedGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return 10, nil
 		},
 	})
@@ -70,7 +70,7 @@ func TestUnscopedFill(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return 10, nil
 		},
 	})

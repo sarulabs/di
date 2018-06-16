@@ -13,7 +13,7 @@ func TestSafeGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &mockObject{}, nil
 		},
 	})
@@ -21,14 +21,14 @@ func TestSafeGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "unmakable",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return nil, errors.New("error")
 		},
 	})
 
 	app := b.Build()
-	request, _ := app.SubContext()
-	subrequest, _ := request.SubContext()
+	request, _ := app.SubContainer()
+	subrequest, _ := request.SubContainer()
 
 	var obj, objBis interface{}
 	var err error
@@ -53,7 +53,7 @@ func TestSafeGet(t *testing.T) {
 	assert.Equal(t, &mockObject{}, objBis.(*mockObject))
 	assert.True(t, obj == objBis)
 
-	// should be able to create an object from a subcontext
+	// should be able to create an object from a sub-container
 	obj, err = subrequest.SafeGet("object")
 	assert.Nil(t, err)
 	assert.Equal(t, &mockObject{}, obj.(*mockObject))
@@ -66,7 +66,7 @@ func TestBuildPanic(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: App,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			panic("panic in Build function")
 		},
 	})
@@ -91,15 +91,15 @@ func TestNestedDependencies(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "nestedObject",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return &nestedMockObject{
-				Object: ctx.Get("appObject").(*mockObject),
+				Object: ctn.Get("appObject").(*mockObject),
 			}, nil
 		},
 	})
 
 	app := b.Build()
-	request, _ := app.SubContext()
+	request, _ := app.SubContainer()
 
 	nestedObject := request.Get("nestedObject").(*nestedMockObject)
 	assert.True(t, appObject == nestedObject.Object)
@@ -111,13 +111,13 @@ func TestGet(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: Request,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return 10, nil
 		},
 	})
 
 	app := b.Build()
-	request, _ := app.SubContext()
+	request, _ := app.SubContainer()
 
 	object := request.Get("object").(int)
 	assert.Equal(t, 10, object)
@@ -129,7 +129,7 @@ func TestFill(t *testing.T) {
 	b.AddDefinition(Definition{
 		Name:  "object",
 		Scope: App,
-		Build: func(ctx Context) (interface{}, error) {
+		Build: func(ctn Container) (interface{}, error) {
 			return 10, nil
 		},
 	})
