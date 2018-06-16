@@ -45,21 +45,30 @@ type Context interface {
 	// The provided object must be a pointer to the value returned by SafeGet.
 	Fill(name string, dst interface{}) error
 
-	// NastySafeGet retrieves an object from the Context, like SafeGet.
+	// UnscopedSafeGet retrieves an object from the Context, like SafeGet.
 	// The difference is that the object can be retrieved
 	// even if it belongs to a narrower scope.
-	// To do so NastySafeGet creates a subcontext.
+	// To do so UnscopedSafeGet creates a subcontext.
 	// When the created object is no longer needed,
 	// it is important to use the Clean method to Delete this subcontext.
+	UnscopedSafeGet(name string) (interface{}, error)
+
+	// UnscopedGet is similar to UnscopedSafeGet but it does not return the error.
+	UnscopedGet(name string) interface{}
+
+	// UnscopedFill is similar to UnscopedSafeGet but copies the object in dst instead of returning it.
+	UnscopedFill(name string, dst interface{}) error
+
+	// NastySafeGet is the previous name of the UnscopedSafeGet method.
 	NastySafeGet(name string) (interface{}, error)
 
-	// NastyGet is similar to NastySafeGet but it does not return the error.
+	// NastyGet is the previous name of the UnscopedGet method.
 	NastyGet(name string) interface{}
 
-	// NastyFill is similar to NastySafeGet but copies the object in dst instead of returning it.
+	// NastyFill is the previous name of the UnscopedFill method.
 	NastyFill(name string, dst interface{}) error
 
-	// Clean deletes the subcontext created by NastySafeGet, NastyGet or NastyFill.
+	// Clean deletes the subcontext created by UnscopedSafeGet, UnscopedGet or UnscopedFill.
 	Clean()
 
 	// DeleteWithSubContexts takes all the objects saved in this Context

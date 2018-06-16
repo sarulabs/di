@@ -5,7 +5,7 @@ import (
 	"runtime/debug"
 )
 
-// contextNastyGetter contains all the functions that are useful
+// contextSlayer contains all the functions that are useful
 // to delete a context.
 type contextSlayer struct{}
 
@@ -27,10 +27,10 @@ func (s *contextSlayer) DeleteWithSubContexts(logger Logger, ctx *contextCore) {
 	ctx.m.Lock()
 
 	c := &contextCore{
-		children:   make([]*contextCore, len(ctx.children)),
-		nastyChild: ctx.nastyChild,
-		parent:     ctx.parent,
-		objects:    map[string]interface{}{},
+		children:      make([]*contextCore, len(ctx.children)),
+		unscopedChild: ctx.unscopedChild,
+		parent:        ctx.parent,
+		objects:       map[string]interface{}{},
 	}
 
 	copy(c.children, ctx.children)
@@ -40,7 +40,7 @@ func (s *contextSlayer) DeleteWithSubContexts(logger Logger, ctx *contextCore) {
 	}
 
 	ctx.children = nil
-	ctx.nastyChild = nil
+	ctx.unscopedChild = nil
 	ctx.parent = nil
 	ctx.objects = nil
 	ctx.closed = true
@@ -55,8 +55,8 @@ func (s *contextSlayer) deleteClone(logger Logger, ctx *contextCore, c *contextC
 		s.DeleteWithSubContexts(logger, child)
 	}
 
-	if c.nastyChild != nil {
-		s.DeleteWithSubContexts(logger, c.nastyChild)
+	if c.unscopedChild != nil {
+		s.DeleteWithSubContexts(logger, c.unscopedChild)
 	}
 
 	if c.parent != nil {
@@ -111,8 +111,8 @@ func (s *contextSlayer) IsClosed(ctx *contextCore) bool {
 
 func (s *contextSlayer) Clean(logger Logger, ctx *contextCore) {
 	ctx.m.Lock()
-	child := ctx.nastyChild
-	ctx.nastyChild = nil
+	child := ctx.unscopedChild
+	ctx.unscopedChild = nil
 	ctx.m.Unlock()
 
 	if child != nil {

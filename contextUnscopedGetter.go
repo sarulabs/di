@@ -5,12 +5,12 @@ import (
 	"fmt"
 )
 
-// contextNastyGetter contains all the functions that are useful
+// contextUnscopedGetter contains all the functions that are useful
 // to retrieve an object from a context when the object
 // is defined in a narrower scope.
-type contextNastyGetter struct{}
+type contextUnscopedGetter struct{}
 
-func (g *contextNastyGetter) NastySafeGet(ctx *context, name string) (interface{}, error) {
+func (g *contextUnscopedGetter) UnscopedSafeGet(ctx *context, name string) (interface{}, error) {
 	def, ok := ctx.definitions[name]
 	if !ok {
 		return nil, fmt.Errorf("could not find a Definition for `%s` in the Context", name)
@@ -21,28 +21,28 @@ func (g *contextNastyGetter) NastySafeGet(ctx *context, name string) (interface{
 	}
 
 	ctx.m.Lock()
-	nastyChild := ctx.nastyChild
+	unscopedChild := ctx.unscopedChild
 	ctx.m.Unlock()
 
 	child := &context{
-		contextCore: nastyChild,
+		contextCore: unscopedChild,
 		built:       ctx.built,
 		logger:      ctx.logger,
 	}
 
 	if child.contextCore != nil {
-		return child.NastySafeGet(name)
+		return child.UnscopedSafeGet(name)
 	}
 
-	child, err := g.addNastyChild(ctx)
+	child, err := g.addUnscopedChild(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return child.NastySafeGet(name)
+	return child.UnscopedSafeGet(name)
 }
 
-func (g *contextNastyGetter) addNastyChild(ctx *context) (*context, error) {
+func (g *contextUnscopedGetter) addUnscopedChild(ctx *context) (*context, error) {
 	child, err := ctx.contextLineage.createChild(ctx)
 	if err != nil {
 		return nil, err
@@ -55,20 +55,20 @@ func (g *contextNastyGetter) addNastyChild(ctx *context) (*context, error) {
 		return nil, errors.New("the Context is closed")
 	}
 
-	ctx.nastyChild = child.contextCore
+	ctx.unscopedChild = child.contextCore
 
 	ctx.m.Unlock()
 
 	return child, nil
 }
 
-func (g *contextNastyGetter) NastyGet(ctx *context, name string) interface{} {
-	obj, _ := ctx.NastySafeGet(name)
+func (g *contextUnscopedGetter) UnscopedGet(ctx *context, name string) interface{} {
+	obj, _ := ctx.UnscopedSafeGet(name)
 	return obj
 }
 
-func (g *contextNastyGetter) NastyFill(ctx *context, name string, dst interface{}) error {
-	obj, err := ctx.NastySafeGet(name)
+func (g *contextUnscopedGetter) UnscopedFill(ctx *context, name string, dst interface{}) error {
+	obj, err := ctx.UnscopedSafeGet(name)
 	if err != nil {
 		return err
 	}

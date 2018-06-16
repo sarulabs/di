@@ -13,7 +13,7 @@ type contextCore struct {
 	definitions     DefinitionMap
 	parent          *contextCore
 	children        []*contextCore
-	nastyChild      *contextCore
+	unscopedChild   *contextCore
 	objects         map[string]interface{}
 	deleteIfNoChild bool
 }

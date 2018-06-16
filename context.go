@@ -3,23 +3,23 @@ package di
 // context is the implementation of the Context interface
 type context struct {
 	// contextCore contains the context data.
-	// Serveral contexts can share the same contextCore.
+	// Several contexts can share the same contextCore.
 	// In this case these contexts represent the same entity,
-	// but at a different stage in an object construction.
+	// but at a different stage of an object construction.
 	*contextCore
 
 	// built contains the name of the Definition being built by this context.
 	// It is used to avoid cycles in object Definitions.
 	// Each time a Context is passed in parameter of the Build function
 	// of a definition, this is in fact a new context.
-	// This context is created with a built attribute
+	// This context is created with a built field
 	// updated with the name of the Definition.
 	built []string
 
 	*contextLineage
 	*contextSlayer
 	*contextGetter
-	*contextNastyGetter
+	*contextUnscopedGetter
 
 	logger Logger
 }
@@ -44,16 +44,28 @@ func (ctx *context) Fill(name string, dst interface{}) error {
 	return ctx.contextGetter.Fill(ctx, name, dst)
 }
 
+func (ctx *context) UnscopedSafeGet(name string) (interface{}, error) {
+	return ctx.contextUnscopedGetter.UnscopedSafeGet(ctx, name)
+}
+
+func (ctx *context) UnscopedGet(name string) interface{} {
+	return ctx.contextUnscopedGetter.UnscopedGet(ctx, name)
+}
+
+func (ctx *context) UnscopedFill(name string, dst interface{}) error {
+	return ctx.contextUnscopedGetter.UnscopedFill(ctx, name, dst)
+}
+
 func (ctx *context) NastySafeGet(name string) (interface{}, error) {
-	return ctx.contextNastyGetter.NastySafeGet(ctx, name)
+	return ctx.contextUnscopedGetter.UnscopedSafeGet(ctx, name)
 }
 
 func (ctx *context) NastyGet(name string) interface{} {
-	return ctx.contextNastyGetter.NastyGet(ctx, name)
+	return ctx.contextUnscopedGetter.UnscopedGet(ctx, name)
 }
 
 func (ctx *context) NastyFill(name string, dst interface{}) error {
-	return ctx.contextNastyGetter.NastyFill(ctx, name, dst)
+	return ctx.contextUnscopedGetter.UnscopedFill(ctx, name, dst)
 }
 
 func (ctx *context) Delete() {

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNastySafeGet(t *testing.T) {
+func TestUnscopedSafeGet(t *testing.T) {
 	b, _ := NewBuilder()
 
 	b.AddDefinition(Definition{
@@ -35,11 +35,11 @@ func TestNastySafeGet(t *testing.T) {
 	_, err = app.SafeGet("subrequest-object")
 	assert.NotNil(t, err)
 
-	obj, err = app.NastySafeGet("subrequest-object")
+	obj, err = app.UnscopedSafeGet("subrequest-object")
 	assert.Nil(t, err)
 	assert.True(t, obj.(*nestedMockObject).Object.Closed)
 
-	objBis, err = app.NastySafeGet("request-object")
+	objBis, err = app.UnscopedSafeGet("request-object")
 	assert.Nil(t, err)
 	assert.True(t, objBis.(*mockObject).Closed)
 
@@ -47,7 +47,7 @@ func TestNastySafeGet(t *testing.T) {
 	assert.False(t, objBis.(*mockObject).Closed)
 }
 
-func TestNastyGet(t *testing.T) {
+func TestUnscopedGet(t *testing.T) {
 	b, _ := NewBuilder()
 
 	b.AddDefinition(Definition{
@@ -60,11 +60,11 @@ func TestNastyGet(t *testing.T) {
 
 	app := b.Build()
 
-	object := app.NastyGet("object").(int)
+	object := app.UnscopedGet("object").(int)
 	assert.Equal(t, 10, object)
 }
 
-func TestNastyFill(t *testing.T) {
+func TestUnscopedFill(t *testing.T) {
 	b, _ := NewBuilder()
 
 	b.AddDefinition(Definition{
@@ -79,7 +79,7 @@ func TestNastyFill(t *testing.T) {
 
 	var object int
 
-	err := app.NastyFill("object", &object)
+	err := app.UnscopedFill("object", &object)
 	assert.Nil(t, err)
 	assert.Equal(t, 10, object)
 }

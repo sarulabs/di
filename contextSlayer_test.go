@@ -24,13 +24,13 @@ func TestClean(t *testing.T) {
 
 	var obj *mockObject
 
-	obj = app.NastyGet("object").(*mockObject)
+	obj = app.UnscopedGet("object").(*mockObject)
 	assert.False(t, obj.Closed)
 
 	app.Clean()
 	assert.True(t, obj.Closed)
 
-	obj = app.NastyGet("object").(*mockObject)
+	obj = app.UnscopedGet("object").(*mockObject)
 	assert.False(t, obj.Closed)
 }
 

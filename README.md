@@ -1,4 +1,17 @@
-# DI
+![DI](https://raw.githubusercontent.com/sarulabs/assets/master/di/logo.png)
+
+Dependency injection container library for go programs (golang).
+
+DI handles the life cycle of the objects in your application. It creates them when they are needed, resolves their dependencies and closes them properly when they are no longer used.
+
+If you do not know if DI could help improving your application, learn more about dependency injection and dependency injection containers:
+
+- [What is a dependency injection container and why use one ?](https://www.sarulabs.com/post/2/2018-06-12/what-is-a-dependency-injection-container-and-why-use-one.html)
+
+DI is focused on performance. It does not rely on reflection.
+
+
+# Table of contents
 
 [![Build Status](https://travis-ci.org/sarulabs/di.svg?branch=master)](https://travis-ci.org/sarulabs/di)
 [![GoDoc](https://godoc.org/github.com/sarulabs/di?status.svg)](http://godoc.org/github.com/sarulabs/di)
@@ -7,21 +20,25 @@
 [![codebeat](https://codebeat.co/badges/d6095401-7dcf-4f63-ab75-7fac5c6aa898)](https://codebeat.co/projects/github-com-sarulabs-di)
 [![goreport](https://goreportcard.com/badge/github.com/sarulabs/di)](https://goreportcard.com/report/github.com/sarulabs/di)
 
----
+- [Basic usage](#basic-usage)
+	* [Object definition](#object-definition)
+	* [Object retrieval](#object-retrieval)
+	* [Nested definition](#nested-definition)
+- [Scopes](#scopes)
+- [Define an already built object](#define-an-already-built-object)
+- [Methods to retrieve an object](#methods-to-retrieve-an-object)
+	* [Get](#get)
+	* [SafeGet](#safeget)
+	* [Fill](#fill)
+- [Unscoped retrieval](#unscoped-retrieval)
+- [Logger](#logger)
+- [Panic in Build and Close functions](#panic-in-build-and-close-functions)
+- [Database example](#database-example)
 
-![DI Logo](https://raw.githubusercontent.com/sarulabs/assets/master/di/logo.png)
 
+# Basic usage
 
-Dependency injection container for go programs (golang).
-
-If you don't know what a dependency injection container is, you may want to read this article before :
-
-https://www.sarulabs.com/post/2/2018-06-12/what-is-a-dependency-injection-container-and-why-use-one.html
-
-
-## Basic usage
-
-### Object definition
+## Object definition
 
 A Definition contains at least the `Name` of the object and a `Build` function to create the object.
 
@@ -48,7 +65,7 @@ builder.AddDefinition(di.Definition{
 ```
 
 
-### Object retrieval
+## Object retrieval
 
 Once the definitions have been added to a Builder, the Builder can generate a Context. This Context will provide the objects defined in the Builder.
 
@@ -60,7 +77,7 @@ obj := ctx.Get("my-object").(*MyObject)
 The objects in a Context are singletons. You will retrieve the exact same object every time you call the `Get` method on the same Context. The `Build` function will only be called once.
 
 
-### Nested definition
+## Nested definition
 
 The `Build` function can also call the `Get` method of the Context. That allows to build objects that depend on other objects defined in the Context.
 
@@ -78,9 +95,9 @@ di.Definition{
 You can not create a cycle in the definitions (A needs B and B needs A). If that happens, an error will be returned at the time of the creation of the object.
 
 
-## Scopes
+# Scopes
 
-Definitions can also have a scope :
+Definitions can also have a scope. They can be useful in request based applications (like a web application).
 
 ```go
 di.Definition{
@@ -92,17 +109,17 @@ di.Definition{
 }
 ```
 
-The scopes are defined when the Builder is created :
+The scopes are defined when the Builder is created:
 
 ```go
-builder, err := di.NewBuilder("app", "request")
+builder, err := di.NewBuilder(di.App, di.Request)
 ```
 
-Scopes are defined from the wider to the narrower. If no scope is given to `NewBuilder`, it is created with the three default scopes : `di.App`, `di.Request` and `di.SubRequest`. These scopes should be enough almost all the time.
+Scopes are defined from the widest to the narrowest. If no scope is given to `NewBuilder`, it is created with the three default scopes: `di.App`, `di.Request` and `di.SubRequest`. These scopes should be enough almost all the time.
 
 Contexts created by the Builder belongs to one of these scopes. A Context may have a parent with a wider scope and children with a narrower scope. A Context is only able to build objects from its own scope, but it can retrieve objects with a wider scope from its parent Context.
 
-If a Definition does not have a scope, the wider scope will be used.
+If a Definition does not have a scope, the widest scope will be used.
 
 ```go
 // Create a Builder with the default scopes.
@@ -126,7 +143,7 @@ builder.AddDefinition(di.Definition{
     },
 })
 
-// Build creates a Context in the wider scope (App).
+// Build creates a Context in the widest scope (App).
 app := builder.Build()
 
 // The App Context can create sub-contexts in the Request scope.
@@ -134,14 +151,14 @@ req1, _ := app.SubContext()
 req2, _ := app.SubContext()
 
 // app-object can be retrieved from the three contexts.
-// The retrieved objects are the same : o1 == o2 == o3.
+// The retrieved objects are the same: o1 == o2 == o3.
 // The object is stored in the App Context.
 o1 := app.Get("app-object").(*MyObject)
 o2 := req1.Get("app-object").(*MyObject)
 o3 := req2.Get("app-object").(*MyObject)
 
 // request-object can only be retrieved from req1 and req2.
-// The retrieved objects are not the same : o4 != o5.
+// The retrieved objects are not the same: o4 != o5.
 o4 := req1.Get("request-object").(*MyObject)
 o5 := req2.Get("request-object").(*MyObject)
 ```
@@ -185,18 +202,18 @@ There are actually two delete methods: `Delete` and `DeleteWithSubContexts`
 
 You probably want to use `Delete` and close the children manually. `DeleteWithSubContexts` can cause errors if the parent is deleted while its children are still used.
 
-The `database example` at the end of this documentation is a good example of how you can use Delete.
+The database example at the end of this documentation is a good example of how you can use Delete.
 
 
-## Define an already built object
+# Define an already built object
 
-The Builder `Set` method is a shortcut to define an already built object in the wider scope.
+The Builder `Set` method is a shortcut to define an already built object in widest scope.
 
 ```go
 builder.Set("my-object", object)
 ```
 
-is the same as :
+is the same as:
 
 ```go
 builder.AddDefinition(di.Definition{
@@ -208,26 +225,24 @@ builder.AddDefinition(di.Definition{
 })
 ```
 
-It can be useful to define you application parameters.
 
+# Methods to retrieve an object
 
-## Methods to retrieve an object
+## Get
 
-### Get
-
-Get returns an interface that can be cast afterward. If the item can't be created, nil is returned.
+Get returns an interface that can be cast afterward. If the item can not be created, nil is returned.
 
 ```go
 // It can be used safely.
 objectInterface := ctx.Get("my-object")
 object, ok := objectInterface.(*MyObject)
 
-// Or if you don't care about panicking...
+// Or if you do not care about panicking...
 object := ctx.Get("my-object").(*MyObject)
 ```
 
 
-### SafeGet
+## SafeGet
 
 Get is fine to retrieve an object, but it does not give you any information if something goes wrong. SafeGet works like Get but also returns an error. It can be used to find why an object could not be created.
 
@@ -236,9 +251,9 @@ objectInterface, err := ctx.SafeGet("my-object")
 ```
 
 
-### Fill
+## Fill
 
-The third method to retrieve an object is Fill. It returns an error if something goes wrong like SafeGet, but it may be more practical in certain situations.
+The third method to retrieve an object is Fill. It returns an error if something goes wrong like SafeGet, but it may be more practical in some situations.
 
 ```go
 var object *MyObject
@@ -246,11 +261,11 @@ err = ctx.Fill("my-object", &MyObject)
 ```
 
 
-## Nasty retrieval
+# Unscoped retrieval
 
 The previous methods can retrieve an object defined in the same scope or a wider one. If you need an object that is defined in a narrower scope, you need to create a sub-context to retrieve it. It is logical but not always very practical.
 
-`NastyGet`, `NastySafeGet` and `NastyFill` work like `Get`, `SafeGet`and `Fill` but can retrieve objects defined in a narrower scope. To do so they generate sub-contexts that are not accessible. To remove these contexts, you have to call the `Clean` method on the Context.
+`UnscopedGet`, `UnscopedSafeGet` and `UnscopedFill` work like `Get`, `SafeGet` and `Fill` but can retrieve objects defined in a narrower scope. To do so they generate sub-contexts that can only be accessed by these three methods. To remove these contexts without deleting the current context, you can call the `Clean` method.
 
 ```go
 builder, _ := di.NewBuilder()
@@ -268,19 +283,19 @@ builder.AddDefinition(di.Definition{
 
 app := builder.Build()
 
-// app can retrieve a request-object with nasty methods.
-obj := req1.NastyGet("request-object").(*MyObject)
+// app can retrieve a request-object with unscoped methods.
+obj := app.UnscopedGet("request-object").(*MyObject)
 
-// Once the objects created with nasty methods are no longer used,
+// Once the objects created with unscoped methods are no longer used,
 // you can call the Clean method. In this case, the Close function
 // will be called on the object.
 app.Clean()
 ```
 
 
-## Logger
+# Logger
 
-If a Logger is set in the Builder when the Context is created, it will be used to log errors that might happen when an object is retrieved or closed. It is particularly useful if you use the `Get` retrieval method that does not return an error.
+If a Logger is set in the Builder when the Context is created, it will be used to log errors that might happen when an object is retrieved or closed. It is particularly useful if you use the `Get` method that does not return an error.
 
 ```go
 builder, _ := di.NewBuilder()
@@ -288,14 +303,14 @@ builder.Logger = di.BasicLogger{}
 ```
 
 
-## Panic in Build and Close functions
+# Panic in Build and Close functions
 
 Panic in Build and Close functions of a Definition are recovered. In particular that allows you to use the `Get` method in a Build function.
 
 Using `Get` in a Build function instead of `SafeGet` is way more practical. But it also can make debugging a nightmare. Be sure to define a Logger in the Builder if you want to be able to trace the errors.
 
 
-## Database example
+# Database example
 
 Here is an example that shows how DI can be used to get a database connection in your application.
 

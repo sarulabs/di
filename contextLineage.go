@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// contextNastyGetter contains all the functions that are useful
+// contextLineage contains all the functions that are useful
 // to retrieve or create the parent and children of a context.
 type contextLineage struct{}
 
@@ -52,13 +52,13 @@ func (l *contextLineage) createChild(ctx *context) (*context, error) {
 
 	return &context{
 		contextCore: &contextCore{
-			scope:       subscopes[0],
-			scopes:      ctx.scopes,
-			definitions: ctx.definitions,
-			parent:      ctx.contextCore,
-			children:    []*contextCore{},
-			nastyChild:  nil,
-			objects:     map[string]interface{}{},
+			scope:         subscopes[0],
+			scopes:        ctx.scopes,
+			definitions:   ctx.definitions,
+			parent:        ctx.contextCore,
+			children:      []*contextCore{},
+			unscopedChild: nil,
+			objects:       map[string]interface{}{},
 		},
 		built:  ctx.built,
 		logger: ctx.logger,
