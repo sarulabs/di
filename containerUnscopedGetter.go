@@ -7,39 +7,65 @@ import (
 
 // containerUnscopedGetter contains all the functions that are useful
 // to retrieve an object from a container when the object
-// is defined in a narrower scope.
+// is defined in a more specific scope.
 type containerUnscopedGetter struct{}
+
+func (g *containerUnscopedGetter) UnscopedGet(ctn *container, name string) interface{} {
+	obj, err := ctn.UnscopedSafeGet(name)
+	if err != nil {
+		panic(err)
+	}
+
+	return obj
+}
+
+func (g *containerUnscopedGetter) UnscopedFill(ctn *container, name string, dst interface{}) error {
+	obj, err := ctn.UnscopedSafeGet(name)
+	if err != nil {
+		return err
+	}
+
+	return fill(obj, dst)
+}
 
 func (g *containerUnscopedGetter) UnscopedSafeGet(ctn *container, name string) (interface{}, error) {
 	def, ok := ctn.definitions[name]
 	if !ok {
-		return nil, fmt.Errorf("could not find a Definition for `%s` in the Container", name)
+		return nil, fmt.Errorf("could get `%s` because the definition does not exist", name)
 	}
 
-	if !stringSliceContains(ctn.SubScopes(), def.Scope) {
+	if !ScopeList(ctn.SubScopes()).Contains(def.Scope) {
 		return ctn.SafeGet(name)
 	}
 
+	return g.unscopedSafeGet(ctn, def)
+}
+
+func (g *containerUnscopedGetter) unscopedSafeGet(ctn *container, def Def) (interface{}, error) {
+	if ctn.scope == def.Scope {
+		return ctn.SafeGet(def.Name)
+	}
+
+	child, err := g.getUnscopedChild(ctn)
+	if err != nil {
+		return nil, fmt.Errorf("could get `%s` because %s", def.Name, err.Error())
+	}
+
+	return g.unscopedSafeGet(child, def)
+}
+
+func (g *containerUnscopedGetter) getUnscopedChild(ctn *container) (*container, error) {
 	ctn.m.Lock()
 	unscopedChild := ctn.unscopedChild
 	ctn.m.Unlock()
 
-	child := &container{
+	if unscopedChild == nil {
+		return g.addUnscopedChild(ctn)
+	}
+
+	return &container{
 		containerCore: unscopedChild,
-		built:         ctn.built,
-		logger:        ctn.logger,
-	}
-
-	if child.containerCore != nil {
-		return child.UnscopedSafeGet(name)
-	}
-
-	child, err := g.addUnscopedChild(ctn)
-	if err != nil {
-		return nil, err
-	}
-
-	return child.UnscopedSafeGet(name)
+	}, nil
 }
 
 func (g *containerUnscopedGetter) addUnscopedChild(ctn *container) (*container, error) {
@@ -52,7 +78,7 @@ func (g *containerUnscopedGetter) addUnscopedChild(ctn *container) (*container, 
 
 	if ctn.closed {
 		ctn.m.Unlock()
-		return nil, errors.New("the Container is closed")
+		return nil, errors.New("the container is closed")
 	}
 
 	ctn.unscopedChild = child.containerCore
@@ -60,18 +86,4 @@ func (g *containerUnscopedGetter) addUnscopedChild(ctn *container) (*container, 
 	ctn.m.Unlock()
 
 	return child, nil
-}
-
-func (g *containerUnscopedGetter) UnscopedGet(ctn *container, name string) interface{} {
-	obj, _ := ctn.UnscopedSafeGet(name)
-	return obj
-}
-
-func (g *containerUnscopedGetter) UnscopedFill(ctn *container, name string, dst interface{}) error {
-	obj, err := ctn.UnscopedSafeGet(name)
-	if err != nil {
-		return err
-	}
-
-	return fill(obj, dst)
 }

@@ -44,3 +44,14 @@ func (l ScopeList) SubScopes(scope string) ScopeList {
 
 	return ScopeList{}
 }
+
+// Contains returns true if the ScopeList contains the given scope.
+func (l ScopeList) Contains(scope string) bool {
+	for _, s := range l {
+		if scope == s {
+			return true
+		}
+	}
+
+	return false
+}
