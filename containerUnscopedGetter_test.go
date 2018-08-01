@@ -60,6 +60,7 @@ func TestUnscopedSafeGet(t *testing.T) {
 
 	// error if the container has been deleted
 	err = req.DeleteWithSubContainers()
+	require.Nil(t, err)
 	_, err = req.UnscopedSafeGet("request-object")
 	require.NotNil(t, err)
 	_, err = req.UnscopedSafeGet("subrequest-object")
