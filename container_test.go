@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockObject struct {
@@ -12,115 +12,124 @@ type mockObject struct {
 	Closed bool
 }
 
-type nestedMockObject struct {
+type mockObjectWithDependency struct {
 	Object *mockObject
 }
 
 func TestCycleError(t *testing.T) {
 	b, _ := NewBuilder()
 
-	b.AddDefinition(Definition{
-		Name: "o1",
-		Build: func(ctn Container) (interface{}, error) {
-			return &nestedMockObject{
-				Object: ctn.Get("o2").(*nestedMockObject).Object,
-			}, nil
+	b.Add([]Def{
+		{
+			Name: "o1",
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObjectWithDependency{
+					Object: ctn.Get("o2").(*mockObjectWithDependency).Object,
+				}, nil
+			},
 		},
-	})
-
-	b.AddDefinition(Definition{
-		Name: "o2",
-		Build: func(ctn Container) (interface{}, error) {
-			return &nestedMockObject{
-				Object: ctn.Get("o1").(*nestedMockObject).Object,
-			}, nil
+		{
+			Name: "o2",
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObjectWithDependency{
+					Object: ctn.Get("o1").(*mockObjectWithDependency).Object,
+				}, nil
+			},
 		},
-	})
+	}...)
 
 	app := b.Build()
 	_, err := app.SafeGet("o1")
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 }
 
 func TestRace(t *testing.T) {
 	b, _ := NewBuilder()
 
-	b.Set("instance", &mockObject{})
-
-	b.AddDefinition(Definition{
-		Name:  "object",
-		Scope: App,
-		Build: func(ctn Container) (interface{}, error) {
-			return &mockObject{}, nil
+	b.Add([]Def{
+		{
+			Name:  "instance",
+			Scope: App,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObject{}, nil
+			},
 		},
-		Close: func(obj interface{}) {
-			i := obj.(*mockObject)
-			i.Lock()
-			i.Closed = true
-			i.Unlock()
+		{
+			Name:  "object",
+			Scope: App,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObject{}, nil
+			},
+			Close: func(obj interface{}) error {
+				i := obj.(*mockObject)
+				i.Lock()
+				i.Closed = true
+				i.Unlock()
+				return nil
+			},
 		},
-	})
-
-	b.AddDefinition(Definition{
-		Name:  "nested",
-		Scope: Request,
-		Build: func(ctn Container) (interface{}, error) {
-			return &nestedMockObject{
-				Object: ctn.Get("object").(*mockObject),
-			}, nil
+		{
+			Name:  "object-with-dependency",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObjectWithDependency{
+					Object: ctn.Get("object").(*mockObject),
+				}, nil
+			},
+			Close: func(obj interface{}) error {
+				o := obj.(*mockObjectWithDependency)
+				o.Object.Lock()
+				o.Object.Closed = true
+				o.Object.Unlock()
+				return nil
+			},
 		},
-		Close: func(obj interface{}) {
-			o := obj.(*nestedMockObject)
-			o.Object.Lock()
-			o.Object.Closed = true
-			o.Object.Unlock()
-		},
-	})
+	}...)
 
 	app := b.Build()
 
-	cApp := make(chan struct{}, 100)
+	var wgApp sync.WaitGroup
 
 	for i := 0; i < 100; i++ {
+		wgApp.Add(1)
+
 		go func() {
+			defer wgApp.Done()
+
 			request, _ := app.SubContainer()
 			defer request.Delete()
 
 			request.Get("instance")
 			request.Get("object")
-			request.Get("nested")
+			request.Get("object-with-dependency")
 
-			cReq := make(chan struct{}, 10)
+			var wgReq sync.WaitGroup
 
 			for j := 0; j < 10; j++ {
+				wgReq.Add(1)
+
 				go func() {
+					defer wgReq.Done()
+
 					subrequest, _ := request.SubContainer()
 					defer subrequest.Delete()
 
 					subrequest.Get("instance")
 					subrequest.Get("object")
-					subrequest.Get("nested")
+					subrequest.Get("object-with-dependency")
 					subrequest.Get("instance")
 					subrequest.Get("object")
-					subrequest.Get("nested")
-
-					cReq <- struct{}{}
+					subrequest.Get("object-with-dependency")
 				}()
 			}
 
-			for j := 0; j < 10; j++ {
-				<-cReq
-			}
+			wgReq.Wait()
 
 			request.Get("instance")
 			request.Get("object")
-			request.Get("nested")
-
-			cApp <- struct{}{}
+			request.Get("object-with-dependency")
 		}()
 	}
 
-	for j := 0; j < 100; j++ {
-		<-cApp
-	}
+	wgApp.Wait()
 }

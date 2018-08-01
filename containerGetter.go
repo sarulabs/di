@@ -1,26 +1,19 @@
 package di
 
 import (
-	"errors"
 	"fmt"
-	"runtime/debug"
 )
 
 // containerGetter contains all the functions that are useful
 // to retrieve an object from a container.
 type containerGetter struct{}
 
-func (g *containerGetter) SafeGet(ctn *container, name string) (interface{}, error) {
-	obj, err := g.get(ctn, name)
+func (g *containerGetter) Get(ctn *container, name string) interface{} {
+	obj, err := ctn.SafeGet(name)
 	if err != nil {
-		ctn.logger.Error(fmt.Sprintf("could not build `%s` err=%s", name, err))
+		panic(err)
 	}
 
-	return obj, err
-}
-
-func (g *containerGetter) Get(ctn *container, name string) interface{} {
-	obj, _ := ctn.SafeGet(name)
 	return obj
 }
 
@@ -33,14 +26,10 @@ func (g *containerGetter) Fill(ctn *container, name string, dst interface{}) err
 	return fill(obj, dst)
 }
 
-func (g *containerGetter) get(ctn *container, name string) (interface{}, error) {
+func (g *containerGetter) SafeGet(ctn *container, name string) (interface{}, error) {
 	def, ok := ctn.definitions[name]
 	if !ok {
-		return nil, fmt.Errorf("could not find a Definition for `%s` in the Container", name)
-	}
-
-	if stringSliceContains(ctn.built, name) {
-		return nil, fmt.Errorf("there is a cycle in object definitions : %v", ctn.built)
+		return nil, fmt.Errorf("could get `%s` because the definition does not exist", name)
 	}
 
 	if ctn.scope != def.Scope {
@@ -50,14 +39,14 @@ func (g *containerGetter) get(ctn *container, name string) (interface{}, error) 
 	return g.getInThisContainer(ctn, def)
 }
 
-func (g *containerGetter) getInThisContainer(ctn *container, def Definition) (interface{}, error) {
-	ctn.m.Lock()
+func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface{}, error) {
+	ctn.m.RLock()
 	closed := ctn.closed
 	obj, ok := ctn.objects[def.Name]
-	ctn.m.Unlock()
+	ctn.m.RUnlock()
 
 	if closed {
-		return nil, errors.New("the Container has been deleted")
+		return nil, fmt.Errorf("could not get `%s` because the container has been deleted", def.Name)
 	}
 
 	if ok {
@@ -67,7 +56,7 @@ func (g *containerGetter) getInThisContainer(ctn *container, def Definition) (in
 	return g.buildInThisContainer(ctn, def)
 }
 
-func (g *containerGetter) buildInThisContainer(ctn *container, def Definition) (interface{}, error) {
+func (g *containerGetter) buildInThisContainer(ctn *container, def Def) (interface{}, error) {
 	obj, err := g.build(ctn, def)
 	if err != nil {
 		return nil, err
@@ -77,8 +66,11 @@ func (g *containerGetter) buildInThisContainer(ctn *container, def Definition) (
 
 	if ctn.closed {
 		ctn.m.Unlock()
-		ctn.Delete()
-		return nil, errors.New("the Container has been deleted")
+		err = ctn.containerSlayer.closeObject(obj, def)
+		return nil, fmt.Errorf(
+			"could not get `%s` because the container has been deleted, the object has been created and closed%s",
+			def.Name, g.formatCloseErr(err),
+		)
 	}
 
 	ctn.objects[def.Name] = obj
@@ -88,14 +80,20 @@ func (g *containerGetter) buildInThisContainer(ctn *container, def Definition) (
 	return obj, nil
 }
 
-func (g *containerGetter) getInParent(ctn *container, def Definition) (interface{}, error) {
-	p, _ := ctn.containerLineage.Parent(ctn).(*container)
+func (g *containerGetter) formatCloseErr(err error) string {
+	if err == nil {
+		return ""
+	}
+	return " (with an error: " + err.Error() + ")"
+}
+
+func (g *containerGetter) getInParent(ctn *container, def Def) (interface{}, error) {
+	p := ctn.containerLineage.parent(ctn)
 
 	if p.containerCore == nil {
 		return nil, fmt.Errorf(
-			"Definition of `%s` requires `%s` scope which does not match this Container scope or any of its parents scope",
-			def.Name,
-			def.Scope,
+			"could not get `%s` because it requires `%s` scope which does not match this container scope or any of its parents scope",
+			def.Name, def.Scope,
 		)
 	}
 
@@ -106,17 +104,28 @@ func (g *containerGetter) getInParent(ctn *container, def Definition) (interface
 	return g.getInThisContainer(p, def)
 }
 
-func (g *containerGetter) build(ctn *container, def Definition) (obj interface{}, err error) {
+func (g *containerGetter) build(ctn *container, def Def) (obj interface{}, err error) {
+	if ctn.builtList.Has(def.Name) {
+		return nil, fmt.Errorf(
+			"could not build `%s` because there is a cycle in the object definitions (%v)",
+			def.Name, ctn.builtList.OrderedList(),
+		)
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("could not build `%s` err=%s stack=%s", def.Name, r, debug.Stack())
+			err = fmt.Errorf("could not build `%s` because the build function panicked: %s", def.Name, r)
 		}
 	}()
 
 	obj, err = def.Build(&container{
 		containerCore: ctn.containerCore,
-		built:         append(ctn.built, def.Name),
-		logger:        ctn.logger,
+		builtList:     ctn.builtList.Add(def.Name),
 	})
-	return
+
+	if err != nil {
+		return nil, fmt.Errorf("could not build `%s`: %s", def.Name, err.Error())
+	}
+
+	return obj, nil
 }

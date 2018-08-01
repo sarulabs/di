@@ -4,27 +4,28 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSafeGet(t *testing.T) {
 	b, _ := NewBuilder()
 
-	b.AddDefinition(Definition{
-		Name:  "object",
-		Scope: Request,
-		Build: func(ctn Container) (interface{}, error) {
-			return &mockObject{}, nil
+	b.Add([]Def{
+		{
+			Name:  "object",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObject{}, nil
+			},
 		},
-	})
-
-	b.AddDefinition(Definition{
-		Name:  "unmakable",
-		Scope: Request,
-		Build: func(ctn Container) (interface{}, error) {
-			return nil, errors.New("error")
+		{
+			Name:  "unmakable",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				return nil, errors.New("error")
+			},
 		},
-	})
+	}...)
 
 	app := b.Build()
 	request, _ := app.SubContainer()
@@ -34,36 +35,36 @@ func TestSafeGet(t *testing.T) {
 	var err error
 
 	_, err = app.SafeGet("object")
-	assert.NotNil(t, err, "should not be able to create the object from the app scope")
+	require.NotNil(t, err, "should not be able to create the object from the app scope")
 
 	_, err = request.SafeGet("undefined")
-	assert.NotNil(t, err, "should not be able to create an undefined object")
+	require.NotNil(t, err, "should not be able to create an undefined object")
 
 	_, err = request.SafeGet("unmakable")
-	assert.NotNil(t, err, "should not be able to create an object if there is an error in the Build function")
+	require.NotNil(t, err, "should not be able to create an object if there is an error in the Build function")
 
 	// should be able to create the object from the request scope
 	obj, err = request.SafeGet("object")
-	assert.Nil(t, err)
-	assert.Equal(t, &mockObject{}, obj.(*mockObject))
+	require.Nil(t, err)
+	require.Equal(t, &mockObject{}, obj.(*mockObject))
 
 	// should retrieve the same object every time
 	objBis, err = request.SafeGet("object")
-	assert.Nil(t, err)
-	assert.Equal(t, &mockObject{}, objBis.(*mockObject))
-	assert.True(t, obj == objBis)
+	require.Nil(t, err)
+	require.Equal(t, &mockObject{}, objBis.(*mockObject))
+	require.True(t, obj == objBis)
 
 	// should be able to create an object from a sub-container
 	obj, err = subrequest.SafeGet("object")
-	assert.Nil(t, err)
-	assert.Equal(t, &mockObject{}, obj.(*mockObject))
-	assert.True(t, obj == objBis)
+	require.Nil(t, err)
+	require.Equal(t, &mockObject{}, obj.(*mockObject))
+	require.True(t, obj == objBis)
 }
 
 func TestBuildPanic(t *testing.T) {
 	b, _ := NewBuilder()
 
-	b.AddDefinition(Definition{
+	b.Add(Def{
 		Name:  "object",
 		Scope: App,
 		Build: func(ctn Container) (interface{}, error) {
@@ -74,41 +75,77 @@ func TestBuildPanic(t *testing.T) {
 	app := b.Build()
 
 	defer func() {
-		assert.Nil(t, recover(), "SafeGet should not panic")
+		require.Nil(t, recover(), "SafeGet should not panic")
 	}()
 
 	_, err := app.SafeGet("object")
-	assert.NotNil(t, err, "should not panic but not be able to create the object either")
+	require.NotNil(t, err, "should not panic but not be able to create the object either")
 }
 
-func TestNestedDependencies(t *testing.T) {
+func TestDependencies(t *testing.T) {
 	b, _ := NewBuilder()
 
 	appObject := &mockObject{}
 
-	b.Set("appObject", appObject)
-
-	b.AddDefinition(Definition{
-		Name:  "nestedObject",
-		Scope: Request,
-		Build: func(ctn Container) (interface{}, error) {
-			return &nestedMockObject{
-				Object: ctn.Get("appObject").(*mockObject),
-			}, nil
+	b.Add([]Def{
+		{
+			Name:  "appObject",
+			Scope: App,
+			Build: func(ctn Container) (interface{}, error) {
+				return appObject, nil
+			},
 		},
-	})
+		{
+			Name:  "objWithDependency",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObjectWithDependency{
+					Object: ctn.Get("appObject").(*mockObject),
+				}, nil
+			},
+		},
+	}...)
 
 	app := b.Build()
 	request, _ := app.SubContainer()
 
-	nestedObject := request.Get("nestedObject").(*nestedMockObject)
-	assert.True(t, appObject == nestedObject.Object)
+	objWithDependency := request.Get("objWithDependency").(*mockObjectWithDependency)
+	require.True(t, appObject == objWithDependency.Object)
+}
+
+func TestDependenciesError(t *testing.T) {
+	b, _ := NewBuilder()
+
+	b.Add([]Def{
+		{
+			Name:  "reqObject",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObject{}, nil
+			},
+		},
+		{
+			Name:  "objWithDependency",
+			Scope: App,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObjectWithDependency{
+					Object: ctn.Get("reqObject").(*mockObject),
+				}, nil
+			},
+		},
+	}...)
+
+	app := b.Build()
+	request, _ := app.SubContainer()
+
+	_, err := request.SafeGet("objWithDependency")
+	require.NotNil(t, err, "an App object should not depends on a Request object")
 }
 
 func TestGet(t *testing.T) {
 	b, _ := NewBuilder()
 
-	b.AddDefinition(Definition{
+	b.Add(Def{
 		Name:  "object",
 		Scope: Request,
 		Build: func(ctn Container) (interface{}, error) {
@@ -120,13 +157,30 @@ func TestGet(t *testing.T) {
 	request, _ := app.SubContainer()
 
 	object := request.Get("object").(int)
-	assert.Equal(t, 10, object)
+	require.Equal(t, 10, object)
+}
+
+func TestGetPanic(t *testing.T) {
+	b, _ := NewBuilder()
+
+	b.Add(Def{
+		Name: "object",
+		Build: func(ctn Container) (interface{}, error) {
+			return 10, errors.New("build error")
+		},
+	})
+
+	app := b.Build()
+
+	require.Panics(t, func() {
+		app.Get("object")
+	})
 }
 
 func TestFill(t *testing.T) {
 	b, _ := NewBuilder()
 
-	b.AddDefinition(Definition{
+	b.Add(Def{
 		Name:  "object",
 		Scope: App,
 		Build: func(ctn Container) (interface{}, error) {
@@ -140,10 +194,69 @@ func TestFill(t *testing.T) {
 	var object int
 	var wrongType string
 
+	err = app.Fill("unknown", &wrongType)
+	require.NotNil(t, err)
+
 	err = app.Fill("object", &wrongType)
-	assert.NotNil(t, err, "should have failed to fill an object with the wrong type")
+	require.NotNil(t, err, "should have failed to fill an object with the wrong type")
 
 	err = app.Fill("object", &object)
-	assert.Nil(t, err)
-	assert.Equal(t, 10, object)
+	require.Nil(t, err)
+	require.Equal(t, 10, object)
+}
+
+func TestDeleteDuringBuild(t *testing.T) {
+	built := false
+	closed := false
+
+	b, _ := NewBuilder()
+
+	b.Add(Def{
+		Name: "object",
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.Delete()
+			built = true
+			return 10, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = true
+			return nil
+		},
+	})
+
+	app := b.Build()
+
+	_, err := app.SafeGet("object")
+	require.NotNil(t, err)
+	require.True(t, app.IsClosed())
+	require.True(t, built)
+	require.True(t, closed)
+}
+
+func TestDeleteDuringBuildWithCloseError(t *testing.T) {
+	built := false
+	closed := false
+
+	b, _ := NewBuilder()
+
+	b.Add(Def{
+		Name: "object",
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.Delete()
+			built = true
+			return 10, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = true
+			return errors.New("could not close object")
+		},
+	})
+
+	app := b.Build()
+
+	_, err := app.SafeGet("object")
+	require.NotNil(t, err)
+	require.True(t, app.IsClosed())
+	require.True(t, built)
+	require.True(t, closed)
 }

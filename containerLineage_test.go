@@ -3,7 +3,7 @@ package di
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSubContainerCreation(t *testing.T) {
@@ -13,11 +13,14 @@ func TestSubContainerCreation(t *testing.T) {
 	app := b.Build()
 
 	request, err := app.SubContainer()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	subrequest, err := request.SubContainer()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	_, err = subrequest.SubContainer()
-	assert.NotNil(t, err, "sub-request does not have any sub-container")
+	require.NotNil(t, err, "sub-request does not have any sub-container")
+
+	require.Equal(t, request, subrequest.Parent())
+	require.Equal(t, app, request.Parent())
 }

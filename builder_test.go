@@ -3,7 +3,7 @@ package di
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewBuilder(t *testing.T) {
@@ -11,121 +11,101 @@ func TestNewBuilder(t *testing.T) {
 	var err error
 
 	_, err = NewBuilder("app", "")
-	assert.NotNil(t, err, "should not be able to create a ContainerManager with an empty scope")
+	require.NotNil(t, err, "should not be able to create a Builder with an empty scope")
 
 	_, err = NewBuilder("app", "request", "app", "subrequest")
-	assert.NotNil(t, err, "should not be able to create a ContainerManager with two identical scopes")
+	require.NotNil(t, err, "should not be able to create a Builder with two identical scopes")
 
 	b, err = NewBuilder("a", "b", "c")
-	assert.Nil(t, err)
-	assert.Equal(t, []string{"a", "b", "c"}, b.Scopes())
+	require.Nil(t, err)
+	require.Equal(t, ScopeList{"a", "b", "c"}, b.Scopes())
+
+	b, err = NewBuilder()
+	require.Nil(t, err)
+	require.Equal(t, ScopeList{App, Request, SubRequest}, b.Scopes())
 }
 
 func TestDefinitions(t *testing.T) {
 	b, _ := NewBuilder()
 
-	def1 := Definition{
-		Name:  "o1",
-		Build: func(ctn Container) (interface{}, error) { return nil, nil },
-	}
+	b.Add([]Def{
+		{
+			Name:  "o1",
+			Build: func(ctn Container) (interface{}, error) { return nil, nil },
+		},
+		{
+			Name:  "o2",
+			Build: func(ctn Container) (interface{}, error) { return nil, nil },
+		},
+	}...)
 
-	def2 := Definition{
-		Name:  "o2",
-		Build: func(ctn Container) (interface{}, error) { return nil, nil },
-	}
-
-	b.AddDefinition(def1)
-	b.AddDefinition(def2)
 	defs := b.Definitions()
 
-	assert.Len(t, defs, 2)
-	assert.Equal(t, "o1", defs["o1"].Name)
-	assert.Equal(t, "o2", defs["o2"].Name)
+	require.Len(t, defs, 2)
+	require.Equal(t, "o1", defs["o1"].Name)
+	require.Equal(t, "o2", defs["o2"].Name)
 }
 
 func TestIsDefined(t *testing.T) {
 	b, _ := NewBuilder()
 
-	b.AddDefinition(Definition{
+	b.Add(Def{
 		Name:  "name",
 		Scope: App,
 		Build: func(ctn Container) (interface{}, error) { return nil, nil },
 	})
 
-	assert.True(t, b.IsDefined("name"))
-	assert.False(t, b.IsDefined("undefined"))
+	require.True(t, b.IsDefined("name"))
+	require.False(t, b.IsDefined("undefined"))
 }
 
-func TestAddDefinitionErrors(t *testing.T) {
+func TestAddErrors(t *testing.T) {
 	b, _ := NewBuilder()
 
 	var err error
 
 	buildFunc := func(ctn Container) (interface{}, error) { return nil, nil }
 
-	err = b.AddDefinition(Definition{Name: "name", Scope: App, Build: buildFunc})
-	assert.Nil(t, err)
+	err = b.Add(Def{Name: "name", Scope: App, Build: buildFunc})
+	require.Nil(t, err)
 
-	err = b.AddDefinition(Definition{Name: "object", Scope: "undefined", Build: buildFunc})
-	assert.NotNil(t, err, "should not be able to add a Definition in an undefined scope")
+	err = b.Add(Def{Name: "object", Scope: "undefined", Build: buildFunc})
+	require.NotNil(t, err, "should not be able to add a Def in an undefined scope")
 
-	err = b.AddDefinition(Definition{Name: "name", Scope: App, Build: buildFunc})
-	assert.NotNil(t, err, "should not be able to add a Definition if the name is already used")
+	err = b.Add(Def{Name: "name", Scope: App, Build: buildFunc})
+	require.NotNil(t, err, "should not be able to add a Def if the name is already used")
 
-	err = b.AddDefinition(Definition{Name: "", Scope: App, Build: buildFunc})
-	assert.NotNil(t, err, "should not be able to add a Definition if the name is empty")
+	err = b.Add(Def{Name: "", Scope: App, Build: buildFunc})
+	require.NotNil(t, err, "should not be able to add a Def if the name is empty")
 
-	err = b.AddDefinition(Definition{Name: "object", Scope: App})
-	assert.NotNil(t, err, "should not be able to add a Definition if Build is empty")
+	err = b.Add(Def{Name: "object", Scope: App})
+	require.NotNil(t, err, "should not be able to add a Def if Build is empty")
 
-	err = b.AddDefinition(Definition{Name: "object", Scope: App, Build: buildFunc})
-	assert.Nil(t, err)
-}
-
-func TestSet(t *testing.T) {
-	var err error
-
-	b := &Builder{}
-
-	err = b.Set("name", nil)
-	assert.NotNil(t, err, "should have at least one scope to use Set")
-
-	b, _ = NewBuilder()
-
-	err = b.Set("name", nil)
-	assert.Nil(t, err)
-
-	err = b.Set("name", nil)
-	assert.NotNil(t, err, "should not be able to set an object if the name is already used")
-
-	err = b.Set("", nil)
-	assert.NotNil(t, err, "should not be able to set an object if the name is empty")
+	err = b.Add(Def{Name: "object", Scope: App, Build: buildFunc})
+	require.Nil(t, err)
 }
 
 func TestBuild(t *testing.T) {
 	ctn := (&Builder{}).Build()
-	assert.Nil(t, ctn, "should have at least one scope to use Build")
+	require.Nil(t, ctn, "should have at least one scope to use Build")
 
 	b, _ := NewBuilder()
 
-	buildFn := func(ctn Container) (interface{}, error) { return nil, nil }
-
-	def1 := Definition{
-		Name:  "o1",
-		Build: buildFn,
-	}
-
-	def2 := Definition{
-		Name:  "o2",
-		Scope: Request,
-		Build: buildFn,
-	}
-
-	b.AddDefinition(def1)
-	b.AddDefinition(def2)
+	b.Add([]Def{
+		{
+			Name:  "o1",
+			Build: func(ctn Container) (interface{}, error) { return nil, nil },
+		},
+		{
+			Name:  "o2",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) { return nil, nil },
+		},
+	}...)
 
 	app := b.Build()
-	assert.Equal(t, App, app.Scope())
-	assert.Len(t, app.Definitions(), 2)
-	assert.Equal(t, App, app.Definitions()["o1"].Scope)
+	require.Equal(t, App, app.Scope())
+	require.Len(t, app.Definitions(), 2)
+	require.Equal(t, App, app.Definitions()["o1"].Scope)
+	require.Equal(t, Request, app.Definitions()["o2"].Scope)
 }

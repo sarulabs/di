@@ -9,17 +9,17 @@ import (
 // to retrieve or create the parent and children of a container.
 type containerLineage struct{}
 
-func (l *containerLineage) getParent(ctn *containerCore) *containerCore {
-	ctn.m.Lock()
-	defer ctn.m.Unlock()
-	return ctn.parent
+func (l *containerLineage) Parent(ctn *container) Container {
+	return l.parent(ctn)
 }
 
-func (l *containerLineage) Parent(ctn *container) Container {
+func (l *containerLineage) parent(ctn *container) *container {
+	ctn.m.RLock()
+	parent := ctn.containerCore.parent
+	ctn.m.RUnlock()
+
 	return &container{
-		containerCore: l.getParent(ctn.containerCore),
-		built:         ctn.built,
-		logger:        ctn.logger,
+		containerCore: parent,
 	}
 }
 
@@ -33,10 +33,10 @@ func (l *containerLineage) SubContainer(ctn *container) (Container, error) {
 
 	if ctn.closed {
 		ctn.m.Unlock()
-		return nil, errors.New("the Container is closed")
+		return nil, errors.New("the container is closed")
 	}
 
-	ctn.children = append(ctn.children, child.containerCore)
+	ctn.children[child.containerCore] = struct{}{}
 
 	ctn.m.Unlock()
 
@@ -47,7 +47,7 @@ func (l *containerLineage) createChild(ctn *container) (*container, error) {
 	subscopes := ctn.SubScopes()
 
 	if len(subscopes) == 0 {
-		return nil, fmt.Errorf("there is no narrower scope than `%s`", ctn.scope)
+		return nil, fmt.Errorf("there is no more specific scope than `%s`", ctn.scope)
 	}
 
 	return &container{
@@ -56,11 +56,9 @@ func (l *containerLineage) createChild(ctn *container) (*container, error) {
 			scopes:        ctn.scopes,
 			definitions:   ctn.definitions,
 			parent:        ctn.containerCore,
-			children:      []*containerCore{},
+			children:      map[*containerCore]struct{}{},
 			unscopedChild: nil,
 			objects:       map[string]interface{}{},
 		},
-		built:  ctn.built,
-		logger: ctn.logger,
 	}, nil
 }

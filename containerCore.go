@@ -6,19 +6,19 @@ import "sync"
 // But it can not build objects on its own.
 // It should be used inside a container.
 type containerCore struct {
-	m               sync.Mutex
+	m               sync.RWMutex
 	closed          bool
 	scope           string
 	scopes          ScopeList
-	definitions     DefinitionMap
+	definitions     DefMap
 	parent          *containerCore
-	children        []*containerCore
+	children        map[*containerCore]struct{}
 	unscopedChild   *containerCore
 	objects         map[string]interface{}
 	deleteIfNoChild bool
 }
 
-func (ctn *containerCore) Definitions() map[string]Definition {
+func (ctn *containerCore) Definitions() map[string]Def {
 	return ctn.definitions.Copy()
 }
 
