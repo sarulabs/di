@@ -31,7 +31,7 @@ func (g *containerUnscopedGetter) UnscopedFill(ctn *container, name string, dst 
 func (g *containerUnscopedGetter) UnscopedSafeGet(ctn *container, name string) (interface{}, error) {
 	def, ok := ctn.definitions[name]
 	if !ok {
-		return nil, fmt.Errorf("could get `%s` because the definition does not exist", name)
+		return nil, fmt.Errorf("could not get `%s` because the definition does not exist", name)
 	}
 
 	if !ScopeList(ctn.SubScopes()).Contains(def.Scope) {
@@ -48,7 +48,7 @@ func (g *containerUnscopedGetter) unscopedSafeGet(ctn *container, def Def) (inte
 
 	child, err := g.getUnscopedChild(ctn)
 	if err != nil {
-		return nil, fmt.Errorf("could get `%s` because %s", def.Name, err.Error())
+		return nil, fmt.Errorf("could not get `%s` because %s", def.Name, err.Error())
 	}
 
 	return g.unscopedSafeGet(child, def)
