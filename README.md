@@ -468,7 +468,9 @@ A `Context` is now a `Container`.
 
 The Context methods `SubContext`, `NastySafeGet`, `NastyGet`, `NastyFill` have been renamed. Their new names are `SubContainer`, `UnscopedSafeGet`, `UnscopedGet`, and `UnscopedFill`.
 
-`Definition` is now `Def`. The `AddDefinition` of the Builder is now `Add` and can take more than one definition as parameter. Definition `Tags` have been removed.
+`Definition` is now `Def`. The `AddDefinition` of the Builder is now `Add` and can take more than one definition as parameter.
+
+Definition `Tags` were removed in `v2.0` but they are back in `v2.1`.
 
 ### Errors
 
