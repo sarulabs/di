@@ -6,6 +6,14 @@ type Def struct {
 	Scope string
 	Build func(ctn Container) (interface{}, error)
 	Close func(obj interface{}) error
+	Tags  []Tag
+}
+
+// Tag can contain more specific information about a Definition.
+// It is useful to find a Definition thanks to its tags instead of its name.
+type Tag struct {
+	Name string
+	Args map[string]string
 }
 
 // DefMap is a collection of Def ordered by name.
