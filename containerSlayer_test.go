@@ -262,6 +262,77 @@ func TestDeleteWithSubContainersWithError(t *testing.T) {
 	require.True(t, request.IsClosed())
 }
 
+func TestDeleteWithOrder(t *testing.T) {
+	b, _ := NewBuilder()
+
+	var app Container
+
+	b.Add([]Def{
+		{
+			Name:  "reqObj3",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObject{}, nil
+			},
+			Close: func(obj interface{}) error {
+				if app.Get("appObj1").(*mockObject).Closed {
+					return errors.New("dependency object has been closed")
+				}
+				obj.(*mockObject).Closed = true
+				return nil
+			},
+		},
+		{
+			Name:  "appObj1",
+			Scope: App,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObject{}, nil
+			},
+			Close: func(obj interface{}) error {
+				obj.(*mockObject).Closed = true
+				return nil
+			},
+		},
+		{
+			Name:  "appObj2",
+			Scope: App,
+			Build: func(ctn Container) (interface{}, error) {
+				return &mockObject{}, nil
+			},
+			Close: func(obj interface{}) error {
+				if app.Get("appObj1").(*mockObject).Closed {
+					return errors.New("dependency object has been closed")
+				}
+				obj.(*mockObject).Closed = true
+				return nil
+			},
+		},
+	}...)
+
+	var err error
+	app = b.Build()
+	request, _ := app.SubContainer()
+
+	obj1 := request.Get("appObj2").(*mockObject)
+	obj2 := request.Get("reqObj3").(*mockObject)
+
+	require.False(t, obj1.Closed)
+	require.False(t, obj2.Closed)
+
+	err = request.Delete()
+	require.Nil(t, err)
+
+	require.False(t, obj1.Closed)
+	require.True(t, obj2.Closed)
+
+	err = app.Delete()
+	require.Nil(t, err)
+
+	require.True(t, obj1.Closed)
+	require.True(t, obj2.Closed)
+	require.True(t, app.IsClosed())
+}
+
 func TestClosePanic(t *testing.T) {
 	b, _ := NewBuilder()
 
