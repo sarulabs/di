@@ -10,8 +10,9 @@ import (
 // Then you can add definitions with the Add method,
 // and finally build the Container with the Build method.
 type Builder struct {
-	definitions DefMap
-	scopes      ScopeList
+	definitions     DefMap
+	definitionOrder []string
+	scopes          ScopeList
 }
 
 // NewBuilder is the only way to create a working Builder.
@@ -30,8 +31,9 @@ func NewBuilder(scopes ...string) (*Builder, error) {
 	}
 
 	return &Builder{
-		definitions: DefMap{},
-		scopes:      scopes,
+		definitions:     DefMap{},
+		definitionOrder: []string{},
+		scopes:          scopes,
 	}, nil
 }
 
@@ -98,6 +100,7 @@ func (b *Builder) add(def Def) error {
 	}
 
 	b.definitions[def.Name] = def
+	b.definitionOrder = append(b.definitionOrder, def.Name)
 
 	return nil
 }
@@ -132,12 +135,13 @@ func (b *Builder) Build() Container {
 
 	return &container{
 		containerCore: &containerCore{
-			scopes:      b.scopes,
-			scope:       b.scopes[0],
-			definitions: defs,
-			parent:      nil,
-			children:    map[*containerCore]struct{}{},
-			objects:     map[string]interface{}{},
+			scopes:          b.scopes,
+			scope:           b.scopes[0],
+			definitions:     defs,
+			definitionOrder: b.definitionOrder,
+			parent:          nil,
+			children:        map[*containerCore]struct{}{},
+			objects:         map[string]interface{}{},
 		},
 	}
 }

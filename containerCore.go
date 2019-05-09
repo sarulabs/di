@@ -11,6 +11,7 @@ type containerCore struct {
 	scope           string
 	scopes          ScopeList
 	definitions     DefMap
+	definitionOrder []string
 	parent          *containerCore
 	children        map[*containerCore]struct{}
 	unscopedChild   *containerCore
