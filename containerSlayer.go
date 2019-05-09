@@ -32,8 +32,13 @@ func (s *containerSlayer) DeleteWithSubContainers(ctn *containerCore) error {
 		parent:          ctn.parent,
 		objects:         ctn.objects,
 	}
-	ctn.closed = true
 	ctn.m.Unlock()
+
+	defer func() {
+		ctn.m.Lock()
+		ctn.closed = true
+		ctn.m.Unlock()
+	}()
 
 	return s.deleteClone(ctn, clone)
 }
