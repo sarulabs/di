@@ -4,6 +4,9 @@ import (
 	"fmt"
 )
 
+// buildingChan is used internally as the value of an object while it is being built.
+type buildingChan chan struct{}
+
 // containerGetter contains all the functions that are useful
 // to retrieve an object from a container.
 type containerGetter struct{}
@@ -32,59 +35,18 @@ func (g *containerGetter) SafeGet(ctn *container, name string) (interface{}, err
 		return nil, fmt.Errorf("could not get `%s` because the definition does not exist", name)
 	}
 
+	if ctn.builtList.Has(def.Name) {
+		return nil, fmt.Errorf(
+			"could not get `%s` because there is a cycle in the object definitions (%v)",
+			def.Name, ctn.builtList.OrderedList(),
+		)
+	}
+
 	if ctn.scope != def.Scope {
 		return g.getInParent(ctn, def)
 	}
 
 	return g.getInThisContainer(ctn, def)
-}
-
-func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface{}, error) {
-	ctn.m.RLock()
-	closed := ctn.closed
-	obj, ok := ctn.objects[def.Name]
-	ctn.m.RUnlock()
-
-	if closed {
-		return nil, fmt.Errorf("could not get `%s` because the container has been deleted", def.Name)
-	}
-
-	if ok {
-		return obj, nil
-	}
-
-	return g.buildInThisContainer(ctn, def)
-}
-
-func (g *containerGetter) buildInThisContainer(ctn *container, def Def) (interface{}, error) {
-	obj, err := g.build(ctn, def)
-	if err != nil {
-		return nil, err
-	}
-
-	ctn.m.Lock()
-
-	if ctn.closed {
-		ctn.m.Unlock()
-		err = ctn.containerSlayer.closeObject(obj, def)
-		return nil, fmt.Errorf(
-			"could not get `%s` because the container has been deleted, the object has been created and closed%s",
-			def.Name, g.formatCloseErr(err),
-		)
-	}
-
-	ctn.objects[def.Name] = obj
-
-	ctn.m.Unlock()
-
-	return obj, nil
-}
-
-func (g *containerGetter) formatCloseErr(err error) string {
-	if err == nil {
-		return ""
-	}
-	return " (with an error: " + err.Error() + ")"
 }
 
 func (g *containerGetter) getInParent(ctn *container, def Def) (interface{}, error) {
@@ -104,14 +66,79 @@ func (g *containerGetter) getInParent(ctn *container, def Def) (interface{}, err
 	return g.getInThisContainer(p, def)
 }
 
-func (g *containerGetter) build(ctn *container, def Def) (obj interface{}, err error) {
-	if ctn.builtList.Has(def.Name) {
+func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface{}, error) {
+	ctn.m.Lock()
+
+	if ctn.closed {
+		ctn.m.Unlock()
+		return nil, fmt.Errorf("could not get `%s` because the container has been deleted", def.Name)
+	}
+
+	obj, ok := ctn.objects[def.Name]
+	if !ok {
+		// the object need to be created
+		c := make(buildingChan)
+		ctn.objects[def.Name] = c
+		ctn.m.Unlock()
+		return g.buildInThisContainer(ctn, def, c)
+	}
+
+	ctn.m.Unlock()
+
+	c, isBuilding := obj.(buildingChan)
+
+	if !isBuilding {
+		// the object is ready to be used
+		return obj, nil
+	}
+
+	// the object is being built by another goroutine
+	<-c
+
+	return g.getInThisContainer(ctn, def)
+}
+
+func (g *containerGetter) buildInThisContainer(ctn *container, def Def, c buildingChan) (interface{}, error) {
+	obj, err := g.build(ctn, def)
+
+	ctn.m.Lock()
+
+	if err != nil {
+		// The object could not be created. Remove the channel from the object map
+		// and close it to allow the object to be created again.
+		delete(ctn.objects, def.Name)
+		ctn.m.Unlock()
+		close(c)
+		return nil, err
+	}
+
+	if ctn.closed {
+		// The container has been deleted while the object was being built.
+		// The newly created object needs to be closed, and it will not be returned.
+		ctn.m.Unlock()
+		close(c)
+		err = ctn.containerSlayer.closeObject(obj, def)
 		return nil, fmt.Errorf(
-			"could not build `%s` because there is a cycle in the object definitions (%v)",
-			def.Name, ctn.builtList.OrderedList(),
+			"could not get `%s` because the container has been deleted, the object has been created and closed%s",
+			def.Name, g.formatCloseErr(err),
 		)
 	}
 
+	ctn.objects[def.Name] = obj
+	ctn.m.Unlock()
+	close(c)
+
+	return obj, nil
+}
+
+func (g *containerGetter) formatCloseErr(err error) string {
+	if err == nil {
+		return ""
+	}
+	return " (with an error: " + err.Error() + ")"
+}
+
+func (g *containerGetter) build(ctn *container, def Def) (obj interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("could not build `%s` because the build function panicked: %s", def.Name, r)

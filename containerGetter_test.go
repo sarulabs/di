@@ -2,7 +2,10 @@ package di
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -259,4 +262,47 @@ func TestDeleteDuringBuildWithCloseError(t *testing.T) {
 	require.True(t, app.IsClosed())
 	require.True(t, built)
 	require.True(t, closed)
+}
+
+func TestConcurrentBuild(t *testing.T) {
+	var numBuild uint64
+	var numClose uint64
+
+	b, _ := NewBuilder()
+
+	b.Add(Def{
+		Name: "object",
+		Build: func(ctn Container) (interface{}, error) {
+			time.Sleep(250 * time.Millisecond)
+			atomic.AddUint64(&numBuild, 1)
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			atomic.AddUint64(&numClose, 1)
+			return nil
+		},
+	})
+
+	app := b.Build()
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			req, _ := app.SubContainer()
+			req.Get("object")
+			req.Delete()
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+
+	require.Equal(t, uint64(1), atomic.LoadUint64(&numBuild))
+	require.Equal(t, uint64(0), atomic.LoadUint64(&numClose))
+
+	app.Delete()
+
+	require.Equal(t, uint64(1), atomic.LoadUint64(&numClose))
 }
