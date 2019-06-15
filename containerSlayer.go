@@ -30,6 +30,7 @@ func (s *containerSlayer) DeleteWithSubContainers(ctn *containerCore) error {
 		unscopedChild: ctn.unscopedChild,
 		parent:        ctn.parent,
 		objects:       ctn.objects,
+		dependencies:  ctn.dependencies,
 	}
 	ctn.closed = true
 	ctn.m.Unlock()
@@ -55,9 +56,16 @@ func (s *containerSlayer) deleteClone(ctn *containerCore, clone *containerCore) 
 		errBuilder.Add(err)
 	}
 
-	for name, obj := range clone.objects {
-		err := s.closeObject(obj, clone.definitions[name])
-		errBuilder.Add(err)
+	names, err := clone.dependencies.TopologicalOrdering()
+	errBuilder.Add(err)
+
+	for _, name := range names {
+		obj, hasObj := clone.objects[name]
+		def, hasDef := clone.definitions[name]
+		if hasObj && hasDef {
+			err := s.closeObject(obj, def)
+			errBuilder.Add(err)
+		}
 	}
 
 	return errBuilder.Build()

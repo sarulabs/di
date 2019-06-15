@@ -74,6 +74,8 @@ func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface
 		return nil, fmt.Errorf("could not get `%s` because the container has been deleted", def.Name)
 	}
 
+	g.addDependencyToGraph(ctn, def.Name)
+
 	obj, ok := ctn.objects[def.Name]
 	if !ok {
 		// the object need to be created
@@ -96,6 +98,14 @@ func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface
 	<-c
 
 	return g.getInThisContainer(ctn, def)
+}
+
+func (g *containerGetter) addDependencyToGraph(ctn *container, defName string) {
+	if last, ok := ctn.builtList.LastElement(); ok {
+		ctn.dependencies.AddEdge(last, defName)
+		return
+	}
+	ctn.dependencies.AddVertex(defName)
 }
 
 func (g *containerGetter) buildInThisContainer(ctn *container, def Def, c buildingChan) (interface{}, error) {
