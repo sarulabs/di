@@ -16,6 +16,7 @@ type containerCore struct {
 	unscopedChild   *containerCore
 	objects         map[string]interface{}
 	deleteIfNoChild bool
+	dependencies    *graph
 }
 
 func (ctn *containerCore) Definitions() map[string]Def {

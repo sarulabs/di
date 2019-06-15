@@ -342,3 +342,119 @@ func TestClean(t *testing.T) {
 	require.True(t, objErr.Closed)
 	require.NotNil(t, err, "there should be an error because of object-close-err")
 }
+
+func TestCloseOrder(t *testing.T) {
+	closed := []string{}
+
+	b, _ := NewBuilder()
+
+	b.Add([]Def{
+		{
+			Name:  "app-1",
+			Scope: App,
+			Build: func(ctn Container) (interface{}, error) {
+				ctn.Get("app-2")
+				return nil, nil
+			},
+			Close: func(obj interface{}) error {
+				closed = append(closed, "app-1")
+				return nil
+			},
+		},
+		{
+			Name:  "app-2",
+			Scope: App,
+			Build: func(ctn Container) (interface{}, error) {
+				return nil, nil
+			},
+			Close: func(obj interface{}) error {
+				closed = append(closed, "app-2")
+				return nil
+			},
+		},
+		{
+			Name:  "req-1",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				ctn.Get("app-1")
+				return nil, nil
+			},
+			Close: func(obj interface{}) error {
+				closed = append(closed, "req-1")
+				return nil
+			},
+		},
+		{
+			Name:  "req-2",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				ctn.Get("req-1")
+				ctn.Get("req-3")
+				ctn.Get("req-4")
+				ctn.Get("app-1")
+				return nil, nil
+			},
+			Close: func(obj interface{}) error {
+				closed = append(closed, "req-2")
+				return nil
+			},
+		},
+		{
+			Name:  "req-3",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				ctn.Get("req-1")
+				ctn.Get("app-2")
+				return nil, nil
+			},
+			Close: func(obj interface{}) error {
+				closed = append(closed, "req-3")
+				return nil
+			},
+		},
+		{
+			Name:  "req-4",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				ctn.Get("req-3")
+				ctn.Get("app-1")
+				return nil, nil
+			},
+			Close: func(obj interface{}) error {
+				closed = append(closed, "req-4")
+				return nil
+			},
+		},
+	}...)
+
+	app := b.Build()
+
+	r1, _ := app.SubContainer()
+	r1.Get("req-1")
+	r1.Get("req-2")
+	r1.Get("req-3")
+	r1.Get("req-4")
+	r1.Get("app-1")
+	r1.Get("app-2")
+
+	r2, _ := app.SubContainer()
+	r2.Get("app-2")
+	r2.Get("app-1")
+	r2.Get("req-4")
+	r2.Get("req-3")
+	r2.Get("req-1")
+
+	var err error
+
+	err = r1.Delete()
+	require.Nil(t, err)
+	require.Equal(t, []string{"req-2", "req-4", "req-3", "req-1"}, closed)
+
+	err = r2.Delete()
+	require.Nil(t, err)
+	require.Equal(t, []string{"req-2", "req-4", "req-3", "req-1", "req-4", "req-3", "req-1"}, closed)
+
+	err = app.Delete()
+	require.Nil(t, err)
+	require.Equal(t, []string{"req-2", "req-4", "req-3", "req-1", "req-4", "req-3", "req-1", "app-1", "app-2"}, closed)
+}
