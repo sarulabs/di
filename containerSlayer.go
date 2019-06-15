@@ -85,6 +85,10 @@ func (s *containerSlayer) closeObject(obj interface{}, def Def) (err error) {
 		}
 	}()
 
+	if _, isBuilding := obj.(buildingChan); isBuilding {
+		return nil
+	}
+
 	if def.Close != nil {
 		err = def.Close(obj)
 	}
