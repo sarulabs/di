@@ -83,8 +83,8 @@ func (b *Builder) Add(defs ...Def) error {
 }
 
 func (b *Builder) add(def Def) error {
-	if err := b.checkName(def.Name); err != nil {
-		return err
+	if def.Name == "" {
+		return errors.New("name can not be empty")
 	}
 
 	// note that an empty scope is allowed
@@ -98,18 +98,6 @@ func (b *Builder) add(def Def) error {
 	}
 
 	b.definitions[def.Name] = def
-
-	return nil
-}
-
-func (b *Builder) checkName(name string) error {
-	if name == "" {
-		return errors.New("name can not be empty")
-	}
-
-	if b.IsDefined(name) {
-		return fmt.Errorf("name `%s` is already defined", name)
-	}
 
 	return nil
 }

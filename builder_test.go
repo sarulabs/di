@@ -59,6 +59,30 @@ func TestIsDefined(t *testing.T) {
 	require.False(t, b.IsDefined("undefined"))
 }
 
+func TestServiceOverride(t *testing.T) {
+	b, _ := NewBuilder()
+
+	var err error
+
+	err = b.Add(Def{
+		Name: "name",
+		Build: func(ctn Container) (interface{}, error) {
+			return "first", nil
+		},
+	})
+	require.Nil(t, err)
+
+	err = b.Add(Def{
+		Name: "name",
+		Build: func(ctn Container) (interface{}, error) {
+			return "second", nil
+		},
+	})
+	require.Nil(t, err)
+
+	require.Equal(t, "second", b.Build().Get("name").(string))
+}
+
 func TestAddErrors(t *testing.T) {
 	b, _ := NewBuilder()
 
@@ -71,9 +95,6 @@ func TestAddErrors(t *testing.T) {
 
 	err = b.Add(Def{Name: "object", Scope: "undefined", Build: buildFunc})
 	require.NotNil(t, err, "should not be able to add a Def in an undefined scope")
-
-	err = b.Add(Def{Name: "name", Scope: App, Build: buildFunc})
-	require.NotNil(t, err, "should not be able to add a Def if the name is already used")
 
 	err = b.Add(Def{Name: "", Scope: App, Build: buildFunc})
 	require.NotNil(t, err, "should not be able to add a Def if the name is empty")
