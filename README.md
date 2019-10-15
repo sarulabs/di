@@ -82,8 +82,9 @@ obj := ctn.Get("my-object").(*MyObject) // retrieve the object
 
 The `Get` method returns an `interface{}`. You need to cast the interface before using the object.
 
-The objects are stored as singletons in the Container. You will retrieve the exact same object every time you call the `Get` method on the same Container. The `Build` function will only be called once.
-
+By default the objects are shared that means what they stored as singletons in the Container. You will retrieve the 
+exact same object every time you call the `Get` method on the same Container. The `Build` function will only be called 
+once. In case when you don't want the objects to be shared set the `Unshared` property of object definition to true.
 
 ## Definitions and dependencies
 

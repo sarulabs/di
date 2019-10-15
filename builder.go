@@ -120,13 +120,14 @@ func (b *Builder) Build() Container {
 
 	return &container{
 		containerCore: &containerCore{
-			scopes:       b.scopes,
-			scope:        b.scopes[0],
-			definitions:  defs,
-			parent:       nil,
-			children:     map[*containerCore]struct{}{},
-			objects:      map[string]interface{}{},
-			dependencies: newGraph(),
+			scopes:          b.scopes,
+			scope:           b.scopes[0],
+			definitions:     defs,
+			parent:          nil,
+			children:        map[*containerCore]struct{}{},
+			objects:         map[string]interface{}{},
+			unsharedObjects: map[string][]interface{}{},
+			dependencies:    newGraph(),
 		},
 	}
 }

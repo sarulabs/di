@@ -64,6 +64,29 @@ func TestSafeGet(t *testing.T) {
 	require.True(t, obj == objBis)
 }
 
+func TestUnsharedObjects(t *testing.T) {
+	b, _ := NewBuilder()
+
+	b.Add(Def{
+		Name: "unshared",
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockObject{}, nil
+		},
+		Unshared: true,
+	})
+
+	var app = b.Build()
+
+	obj1, err := app.SafeGet("unshared")
+	require.Nil(t, err)
+
+	obj2, err := app.SafeGet("unshared")
+	require.Nil(t, err)
+
+	// should retrieve different object every time
+	require.False(t, obj1 == obj2)
+}
+
 func TestBuildPanic(t *testing.T) {
 	b, _ := NewBuilder()
 

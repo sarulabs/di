@@ -425,6 +425,20 @@ func TestCloseOrder(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			Name:  "req-5",
+			Scope: Request,
+			Build: func(ctn Container) (interface{}, error) {
+				ctn.Get("app-1")
+				ctn.Get("req-1")
+				return nil, nil
+			},
+			Close: func(obj interface{}) error {
+				closed = append(closed, "req-5")
+				return nil
+			},
+			Unshared: true,
+		},
 	}...)
 
 	app := b.Build()
@@ -434,6 +448,8 @@ func TestCloseOrder(t *testing.T) {
 	r1.Get("req-2")
 	r1.Get("req-3")
 	r1.Get("req-4")
+	r1.Get("req-5")
+	r1.Get("req-5")
 	r1.Get("app-1")
 	r1.Get("app-2")
 
@@ -442,19 +458,21 @@ func TestCloseOrder(t *testing.T) {
 	r2.Get("app-1")
 	r2.Get("req-4")
 	r2.Get("req-3")
+	r2.Get("req-5")
 	r2.Get("req-1")
+	r2.Get("req-5")
 
 	var err error
 
 	err = r1.Delete()
 	require.Nil(t, err)
-	require.Equal(t, []string{"req-2", "req-4", "req-3", "req-1"}, closed)
+	require.Equal(t, []string{"req-5", "req-5", "req-2", "req-4", "req-3", "req-1"}, closed)
 
 	err = r2.Delete()
 	require.Nil(t, err)
-	require.Equal(t, []string{"req-2", "req-4", "req-3", "req-1", "req-4", "req-3", "req-1"}, closed)
+	require.Equal(t, []string{"req-5", "req-5", "req-2", "req-4", "req-3", "req-1", "req-5", "req-5", "req-4", "req-3", "req-1"}, closed)
 
 	err = app.Delete()
 	require.Nil(t, err)
-	require.Equal(t, []string{"req-2", "req-4", "req-3", "req-1", "req-4", "req-3", "req-1", "app-1", "app-2"}, closed)
+	require.Equal(t, []string{"req-5", "req-5", "req-2", "req-4", "req-3", "req-1", "req-5", "req-5", "req-4", "req-3", "req-1", "app-1", "app-2"}, closed)
 }

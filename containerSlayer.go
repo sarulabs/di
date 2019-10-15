@@ -25,12 +25,13 @@ func (s *containerSlayer) Delete(ctn *containerCore) error {
 func (s *containerSlayer) DeleteWithSubContainers(ctn *containerCore) error {
 	ctn.m.Lock()
 	clone := &containerCore{
-		definitions:   ctn.definitions,
-		children:      ctn.children,
-		unscopedChild: ctn.unscopedChild,
-		parent:        ctn.parent,
-		objects:       ctn.objects,
-		dependencies:  ctn.dependencies,
+		definitions:     ctn.definitions,
+		children:        ctn.children,
+		unscopedChild:   ctn.unscopedChild,
+		parent:          ctn.parent,
+		objects:         ctn.objects,
+		unsharedObjects: ctn.unsharedObjects,
+		dependencies:    ctn.dependencies,
 	}
 	ctn.closed = true
 	ctn.m.Unlock()
@@ -60,11 +61,23 @@ func (s *containerSlayer) deleteClone(ctn *containerCore, clone *containerCore) 
 	errBuilder.Add(err)
 
 	for _, name := range names {
-		obj, hasObj := clone.objects[name]
 		def, hasDef := clone.definitions[name]
-		if hasObj && hasDef {
-			err := s.closeObject(obj, def)
-			errBuilder.Add(err)
+		if !hasDef {
+			continue
+		}
+
+		if def.Unshared {
+			objs := clone.unsharedObjects[name]
+			for _, obj := range objs {
+				err := s.closeObject(obj, def)
+				errBuilder.Add(err)
+			}
+		} else {
+			obj, hasObj := clone.objects[name]
+			if hasObj {
+				err := s.closeObject(obj, def)
+				errBuilder.Add(err)
+			}
 		}
 	}
 

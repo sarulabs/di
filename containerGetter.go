@@ -76,13 +76,18 @@ func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface
 
 	g.addDependencyToGraph(ctn, def.Name)
 
+	if def.Unshared {
+		ctn.m.Unlock()
+		return g.buildUnsharedInThisContainer(ctn, def)
+	}
+
 	obj, ok := ctn.objects[def.Name]
 	if !ok {
 		// the object need to be created
 		c := make(buildingChan)
 		ctn.objects[def.Name] = c
 		ctn.m.Unlock()
-		return g.buildInThisContainer(ctn, def, c)
+		return g.buildSharedInThisContainer(ctn, def, c)
 	}
 
 	ctn.m.Unlock()
@@ -108,7 +113,7 @@ func (g *containerGetter) addDependencyToGraph(ctn *container, defName string) {
 	ctn.dependencies.AddVertex(defName)
 }
 
-func (g *containerGetter) buildInThisContainer(ctn *container, def Def, c buildingChan) (interface{}, error) {
+func (g *containerGetter) buildSharedInThisContainer(ctn *container, def Def, c buildingChan) (interface{}, error) {
 	obj, err := g.build(ctn, def)
 
 	ctn.m.Lock()
@@ -137,6 +142,37 @@ func (g *containerGetter) buildInThisContainer(ctn *container, def Def, c buildi
 	ctn.objects[def.Name] = obj
 	ctn.m.Unlock()
 	close(c)
+
+	return obj, nil
+}
+
+func (g *containerGetter) buildUnsharedInThisContainer(ctn *container, def Def) (interface{}, error) {
+	obj, err := g.build(ctn, def)
+	if err != nil {
+		// The object could not be created. Just returning a error.
+		return nil, err
+	}
+
+	ctn.m.Lock()
+
+	if ctn.closed {
+		// The container has been deleted while the object was being built.
+		// The newly created object needs to be closed, and it will not be returned.
+		ctn.m.Unlock()
+		err = ctn.containerSlayer.closeObject(obj, def)
+		return nil, fmt.Errorf(
+			"could not get `%s` because the container has been deleted, the object has been created and closed%s",
+			def.Name, g.formatCloseErr(err),
+		)
+	}
+
+	if _, ok := ctn.unsharedObjects[def.Name]; ok {
+		ctn.unsharedObjects[def.Name] = append(ctn.unsharedObjects[def.Name], obj)
+	} else {
+		ctn.unsharedObjects[def.Name] = []interface{}{obj}
+	}
+
+	ctn.m.Unlock()
 
 	return obj, nil
 }
