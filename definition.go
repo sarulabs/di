@@ -1,5 +1,8 @@
 package di
 
+// UnsharedSeparator is delimiter, used in unique name generation.
+const UnsharedSeparator = "#"
+
 // Def contains information to build and close an object inside a Container.
 type Def struct {
 	Build    func(ctn Container) (interface{}, error)

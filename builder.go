@@ -126,7 +126,7 @@ func (b *Builder) Build() Container {
 			parent:          nil,
 			children:        map[*containerCore]struct{}{},
 			objects:         map[string]interface{}{},
-			unsharedObjects: map[string][]interface{}{},
+			unsharedObjects: map[string]interface{}{},
 			dependencies:    newGraph(),
 		},
 	}

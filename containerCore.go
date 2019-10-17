@@ -15,7 +15,8 @@ type containerCore struct {
 	children        map[*containerCore]struct{}
 	unscopedChild   *containerCore
 	objects         map[string]interface{}
-	unsharedObjects map[string][]interface{}
+	unsharedCounter uint64
+	unsharedObjects map[string]interface{}
 	deleteIfNoChild bool
 	dependencies    *graph
 }

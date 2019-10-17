@@ -2,6 +2,7 @@ package di
 
 import (
 	"fmt"
+	"strings"
 )
 
 // containerSlayer contains all the functions that are useful
@@ -61,23 +62,19 @@ func (s *containerSlayer) deleteClone(ctn *containerCore, clone *containerCore) 
 	errBuilder.Add(err)
 
 	for _, name := range names {
-		def, hasDef := clone.definitions[name]
+		def, hasDef := clone.definitions[strings.Split(name, UnsharedSeparator)[0]]
 		if !hasDef {
 			continue
 		}
 
-		if def.Unshared {
-			objs := clone.unsharedObjects[name]
-			for _, obj := range objs {
-				err := s.closeObject(obj, def)
-				errBuilder.Add(err)
-			}
-		} else {
-			obj, hasObj := clone.objects[name]
-			if hasObj {
-				err := s.closeObject(obj, def)
-				errBuilder.Add(err)
-			}
+		if obj, hasObj := clone.objects[name]; hasObj {
+			err := s.closeObject(obj, def)
+			errBuilder.Add(err)
+		}
+
+		if obj, hasObj := clone.unsharedObjects[name]; hasObj {
+			err := s.closeObject(obj, def)
+			errBuilder.Add(err)
 		}
 	}
 

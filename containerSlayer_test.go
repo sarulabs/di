@@ -2,6 +2,8 @@ package di
 
 import (
 	"errors"
+	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -344,7 +346,10 @@ func TestClean(t *testing.T) {
 }
 
 func TestCloseOrder(t *testing.T) {
-	closed := []string{}
+	var (
+		index  uint64
+		closed = []string{}
+	)
 
 	b, _ := NewBuilder()
 
@@ -418,6 +423,7 @@ func TestCloseOrder(t *testing.T) {
 			Build: func(ctn Container) (interface{}, error) {
 				ctn.Get("req-3")
 				ctn.Get("app-1")
+				ctn.Get("req-5")
 				return nil, nil
 			},
 			Close: func(obj interface{}) error {
@@ -431,10 +437,10 @@ func TestCloseOrder(t *testing.T) {
 			Build: func(ctn Container) (interface{}, error) {
 				ctn.Get("app-1")
 				ctn.Get("req-1")
-				return nil, nil
+				return atomic.AddUint64(&index, 1), nil
 			},
 			Close: func(obj interface{}) error {
-				closed = append(closed, "req-5")
+				closed = append(closed, fmt.Sprintf("req-5#%d", obj.(uint64)))
 				return nil
 			},
 			Unshared: true,
@@ -443,22 +449,22 @@ func TestCloseOrder(t *testing.T) {
 
 	app := b.Build()
 
+	index = 0
 	r1, _ := app.SubContainer()
 	r1.Get("req-1")
 	r1.Get("req-2")
 	r1.Get("req-3")
 	r1.Get("req-4")
 	r1.Get("req-5")
-	r1.Get("req-5")
 	r1.Get("app-1")
 	r1.Get("app-2")
 
+	index = 0
 	r2, _ := app.SubContainer()
 	r2.Get("app-2")
 	r2.Get("app-1")
 	r2.Get("req-4")
 	r2.Get("req-3")
-	r2.Get("req-5")
 	r2.Get("req-1")
 	r2.Get("req-5")
 
@@ -466,13 +472,13 @@ func TestCloseOrder(t *testing.T) {
 
 	err = r1.Delete()
 	require.Nil(t, err)
-	require.Equal(t, []string{"req-5", "req-5", "req-2", "req-4", "req-3", "req-1"}, closed)
+	require.Equal(t, []string{"req-5#2", "req-2", "req-4", "req-5#1", "req-3", "req-1"}, closed)
 
 	err = r2.Delete()
 	require.Nil(t, err)
-	require.Equal(t, []string{"req-5", "req-5", "req-2", "req-4", "req-3", "req-1", "req-5", "req-5", "req-4", "req-3", "req-1"}, closed)
+	require.Equal(t, []string{"req-5#2", "req-2", "req-4", "req-5#1", "req-3", "req-1", "req-5#2", "req-4", "req-5#1", "req-3", "req-1"}, closed)
 
 	err = app.Delete()
 	require.Nil(t, err)
-	require.Equal(t, []string{"req-5", "req-5", "req-2", "req-4", "req-3", "req-1", "req-5", "req-5", "req-4", "req-3", "req-1", "app-1", "app-2"}, closed)
+	require.Equal(t, []string{"req-5#2", "req-2", "req-4", "req-5#1", "req-3", "req-1", "req-5#2", "req-4", "req-5#1", "req-3", "req-1", "app-1", "app-2"}, closed)
 }

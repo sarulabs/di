@@ -59,7 +59,7 @@ func (l *containerLineage) createChild(ctn *container) (*container, error) {
 			children:        map[*containerCore]struct{}{},
 			unscopedChild:   nil,
 			objects:         map[string]interface{}{},
-			unsharedObjects: map[string][]interface{}{},
+			unsharedObjects: map[string]interface{}{},
 			dependencies:    newGraph(),
 		},
 	}, nil

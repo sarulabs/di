@@ -2,6 +2,7 @@ package di
 
 import (
 	"fmt"
+	"sync/atomic"
 )
 
 // buildingChan is used internally as the value of an object while it is being built.
@@ -74,12 +75,17 @@ func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface
 		return nil, fmt.Errorf("could not get `%s` because the container has been deleted", def.Name)
 	}
 
-	g.addDependencyToGraph(ctn, def.Name)
-
 	if def.Unshared {
 		ctn.m.Unlock()
+
+		// All unshared object are unique, because we generate unique definition name.
+		def.Name = fmt.Sprintf("%s%s%d", def.Name, UnsharedSeparator, atomic.AddUint64(&ctn.unsharedCounter, 1))
+		g.addDependencyToGraph(ctn, def.Name)
+
 		return g.buildUnsharedInThisContainer(ctn, def)
 	}
+
+	g.addDependencyToGraph(ctn, def.Name)
 
 	obj, ok := ctn.objects[def.Name]
 	if !ok {
@@ -166,12 +172,7 @@ func (g *containerGetter) buildUnsharedInThisContainer(ctn *container, def Def) 
 		)
 	}
 
-	if _, ok := ctn.unsharedObjects[def.Name]; ok {
-		ctn.unsharedObjects[def.Name] = append(ctn.unsharedObjects[def.Name], obj)
-	} else {
-		ctn.unsharedObjects[def.Name] = []interface{}{obj}
-	}
-
+	ctn.unsharedObjects[def.Name] = obj
 	ctn.m.Unlock()
 
 	return obj, nil
