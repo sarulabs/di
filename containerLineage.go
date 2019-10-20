@@ -52,15 +52,14 @@ func (l *containerLineage) createChild(ctn *container) (*container, error) {
 
 	return &container{
 		containerCore: &containerCore{
-			scope:           subscopes[0],
-			scopes:          ctn.scopes,
-			definitions:     ctn.definitions,
-			parent:          ctn.containerCore,
-			children:        map[*containerCore]struct{}{},
-			unscopedChild:   nil,
-			objects:         map[string]interface{}{},
-			unsharedObjects: map[string]interface{}{},
-			dependencies:    newGraph(),
+			scope:         subscopes[0],
+			scopes:        ctn.scopes,
+			definitions:   ctn.definitions,
+			parent:        ctn.containerCore,
+			children:      map[*containerCore]struct{}{},
+			unscopedChild: nil,
+			objects:       map[objectKey]interface{}{},
+			dependencies:  newGraph(),
 		},
 	}, nil
 }

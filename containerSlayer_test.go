@@ -3,7 +3,6 @@ package di
 import (
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -347,7 +346,7 @@ func TestClean(t *testing.T) {
 
 func TestCloseOrder(t *testing.T) {
 	var (
-		index  uint64
+		index  int
 		closed = []string{}
 	)
 
@@ -437,10 +436,12 @@ func TestCloseOrder(t *testing.T) {
 			Build: func(ctn Container) (interface{}, error) {
 				ctn.Get("app-1")
 				ctn.Get("req-1")
-				return atomic.AddUint64(&index, 1), nil
+
+				index += 1
+				return index, nil
 			},
 			Close: func(obj interface{}) error {
-				closed = append(closed, fmt.Sprintf("req-5#%d", obj.(uint64)))
+				closed = append(closed, fmt.Sprintf("req-5#%d", obj.(int)))
 				return nil
 			},
 			Unshared: true,

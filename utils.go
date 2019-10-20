@@ -7,44 +7,50 @@ import (
 	"strings"
 )
 
+// objectKey is used to mark objects.
+type objectKey struct {
+	defName  string
+	uniqueID int
+}
+
 // builtList is used to store the objects
 // that a container has already built.
 type builtList struct {
 	// last is the name of the last inserted element.
-	last string
+	last objectKey
 	// elements is used to store the inserted elements.
 	// The key is the name of the element,
 	// and the value is the number of elements
 	// in the map when the element is inserted.
-	elements map[string]int
+	elements map[objectKey]int
 }
 
 // Add adds an element in the map.
-func (l builtList) Add(name string) builtList {
+func (l builtList) Add(objKey objectKey) builtList {
 	newL := builtList{
-		last:     name,
-		elements: map[string]int{},
+		last:     objKey,
+		elements: map[objectKey]int{},
 	}
 
 	for k, v := range l.elements {
 		newL.elements[k] = v
 	}
 
-	newL.elements[name] = len(newL.elements)
+	newL.elements[objKey] = len(newL.elements)
 
 	return newL
 }
 
 // Has checks if the builtList contains the given element.
-func (l builtList) Has(name string) bool {
-	_, ok := l.elements[name]
+func (l builtList) Has(objKey objectKey) bool {
+	_, ok := l.elements[objKey]
 	return ok
 }
 
 // OrderedList returns the list of elements in the order
 // they were inserted.
-func (l builtList) OrderedList() []string {
-	s := make([]string, len(l.elements))
+func (l builtList) OrderedList() []objectKey {
+	s := make([]objectKey, len(l.elements))
 
 	for name, i := range l.elements {
 		s[i] = name
@@ -54,11 +60,12 @@ func (l builtList) OrderedList() []string {
 }
 
 // LastElement returns the last inserted element.
-func (l builtList) LastElement() (string, bool) {
+func (l builtList) LastElement() (objectKey, bool) {
 	if len(l.elements) > 0 {
 		return l.last, true
 	}
-	return "", false
+
+	return objectKey{}, false
 }
 
 // graph is a Directed Acyclic Graph.
@@ -69,9 +76,9 @@ type graph struct {
 	// names contains the keys of the "edges" field.
 	// It allows the vertices to be sorted.
 	// It makes the structure deterministic.
-	names []string
+	names []objectKey
 	// vertices ordered by name.
-	vertices map[string]*graphVertex
+	vertices map[objectKey]*graphVertex
 }
 
 // graphVertex contains the vertex data.
@@ -81,22 +88,22 @@ type graphVertex struct {
 	// numInTmp is used by the TopologicalOrdering to avoid messing with numIn
 	numInTmp int
 	// out contains the name the outgoing edges.
-	out []string
+	out []objectKey
 	// outMap is the same as "out", but in a map
 	// to quickly check if a vertex is in the outgoing edges.
-	outMap map[string]struct{}
+	outMap map[objectKey]struct{}
 }
 
 // newGraph creates a new graph.
 func newGraph() *graph {
 	return &graph{
-		names:    []string{},
-		vertices: map[string]*graphVertex{},
+		names:    []objectKey{},
+		vertices: map[objectKey]*graphVertex{},
 	}
 }
 
 // AddVertex adds a vertex to the graph.
-func (g *graph) AddVertex(v string) {
+func (g *graph) AddVertex(v objectKey) {
 	_, ok := g.vertices[v]
 	if ok {
 		return
@@ -106,13 +113,13 @@ func (g *graph) AddVertex(v string) {
 
 	g.vertices[v] = &graphVertex{
 		numIn:  0,
-		out:    []string{},
-		outMap: map[string]struct{}{},
+		out:    []objectKey{},
+		outMap: map[objectKey]struct{}{},
 	}
 }
 
 // AddEdge adds an edge to the graph.
-func (g *graph) AddEdge(from, to string) {
+func (g *graph) AddEdge(from, to objectKey) {
 	g.AddVertex(from)
 	g.AddVertex(to)
 
@@ -131,9 +138,9 @@ func (g *graph) AddEdge(from, to string) {
 // It implements Kahn's algorithm.
 // If there is a cycle in the graph, an error is returned.
 // The list of vertices is also returned even if it is not ordered.
-func (g *graph) TopologicalOrdering() ([]string, error) {
-	l := []string{}
-	q := []string{}
+func (g *graph) TopologicalOrdering() ([]objectKey, error) {
+	l := []objectKey{}
+	q := []objectKey{}
 
 	for _, v := range g.names {
 		if g.vertices[v].numIn == 0 {
@@ -156,7 +163,7 @@ func (g *graph) TopologicalOrdering() ([]string, error) {
 	}
 
 	if len(l) != len(g.names) {
-		return append([]string{}, g.names...), errors.New("a cycle has been found in the dependencies")
+		return append([]objectKey{}, g.names...), errors.New("a cycle has been found in the dependencies")
 	}
 
 	return l, nil

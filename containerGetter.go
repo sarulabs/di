@@ -2,7 +2,6 @@ package di
 
 import (
 	"fmt"
-	"sync/atomic"
 )
 
 // buildingChan is used internally as the value of an object while it is being built.
@@ -36,7 +35,8 @@ func (g *containerGetter) SafeGet(ctn *container, name string) (interface{}, err
 		return nil, fmt.Errorf("could not get `%s` because the definition does not exist", name)
 	}
 
-	if ctn.builtList.Has(def.Name) {
+	objKey := objectKey{defName: def.Name}
+	if ctn.builtList.Has(objKey) {
 		return nil, fmt.Errorf(
 			"could not get `%s` because there is a cycle in the object definitions (%v)",
 			def.Name, ctn.builtList.OrderedList(),
@@ -75,25 +75,21 @@ func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface
 		return nil, fmt.Errorf("could not get `%s` because the container has been deleted", def.Name)
 	}
 
+	objKey := objectKey{defName: def.Name}
 	if def.Unshared {
-		ctn.m.Unlock()
-
-		// All unshared object are unique, because we generate unique definition name.
-		def.Name = fmt.Sprintf("%s%s%d", def.Name, UnsharedSeparator, atomic.AddUint64(&ctn.unsharedCounter, 1))
-		g.addDependencyToGraph(ctn, def.Name)
-
-		return g.buildUnsharedInThisContainer(ctn, def)
+		ctn.lastUniqueID += 1
+		objKey.uniqueID = ctn.lastUniqueID
 	}
 
-	g.addDependencyToGraph(ctn, def.Name)
+	g.addDependencyToGraph(ctn, objKey)
 
-	obj, ok := ctn.objects[def.Name]
+	obj, ok := ctn.objects[objKey]
 	if !ok {
 		// the object need to be created
 		c := make(buildingChan)
-		ctn.objects[def.Name] = c
+		ctn.objects[objKey] = c
 		ctn.m.Unlock()
-		return g.buildSharedInThisContainer(ctn, def, c)
+		return g.buildInThisContainer(ctn, def, objKey, c)
 	}
 
 	ctn.m.Unlock()
@@ -111,23 +107,24 @@ func (g *containerGetter) getInThisContainer(ctn *container, def Def) (interface
 	return g.getInThisContainer(ctn, def)
 }
 
-func (g *containerGetter) addDependencyToGraph(ctn *container, defName string) {
+func (g *containerGetter) addDependencyToGraph(ctn *container, objKey objectKey) {
 	if last, ok := ctn.builtList.LastElement(); ok {
-		ctn.dependencies.AddEdge(last, defName)
+		ctn.dependencies.AddEdge(last, objKey)
 		return
 	}
-	ctn.dependencies.AddVertex(defName)
+
+	ctn.dependencies.AddVertex(objKey)
 }
 
-func (g *containerGetter) buildSharedInThisContainer(ctn *container, def Def, c buildingChan) (interface{}, error) {
-	obj, err := g.build(ctn, def)
+func (g *containerGetter) buildInThisContainer(ctn *container, def Def, objKey objectKey, c buildingChan) (interface{}, error) {
+	obj, err := g.build(ctn, def, objKey)
 
 	ctn.m.Lock()
 
 	if err != nil {
 		// The object could not be created. Remove the channel from the object map
 		// and close it to allow the object to be created again.
-		delete(ctn.objects, def.Name)
+		delete(ctn.objects, objKey)
 		ctn.m.Unlock()
 		close(c)
 		return nil, err
@@ -145,35 +142,9 @@ func (g *containerGetter) buildSharedInThisContainer(ctn *container, def Def, c 
 		)
 	}
 
-	ctn.objects[def.Name] = obj
+	ctn.objects[objKey] = obj
 	ctn.m.Unlock()
 	close(c)
-
-	return obj, nil
-}
-
-func (g *containerGetter) buildUnsharedInThisContainer(ctn *container, def Def) (interface{}, error) {
-	obj, err := g.build(ctn, def)
-	if err != nil {
-		// The object could not be created. Just returning a error.
-		return nil, err
-	}
-
-	ctn.m.Lock()
-
-	if ctn.closed {
-		// The container has been deleted while the object was being built.
-		// The newly created object needs to be closed, and it will not be returned.
-		ctn.m.Unlock()
-		err = ctn.containerSlayer.closeObject(obj, def)
-		return nil, fmt.Errorf(
-			"could not get `%s` because the container has been deleted, the object has been created and closed%s",
-			def.Name, g.formatCloseErr(err),
-		)
-	}
-
-	ctn.unsharedObjects[def.Name] = obj
-	ctn.m.Unlock()
 
 	return obj, nil
 }
@@ -185,7 +156,7 @@ func (g *containerGetter) formatCloseErr(err error) string {
 	return " (with an error: " + err.Error() + ")"
 }
 
-func (g *containerGetter) build(ctn *container, def Def) (obj interface{}, err error) {
+func (g *containerGetter) build(ctn *container, def Def, objKey objectKey) (obj interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("could not build `%s` because the build function panicked: %s", def.Name, r)
@@ -194,7 +165,7 @@ func (g *containerGetter) build(ctn *container, def Def) (obj interface{}, err e
 
 	obj, err = def.Build(&container{
 		containerCore: ctn.containerCore,
-		builtList:     ctn.builtList.Add(def.Name),
+		builtList:     ctn.builtList.Add(objKey),
 	})
 
 	if err != nil {

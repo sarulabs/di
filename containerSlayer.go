@@ -2,7 +2,6 @@ package di
 
 import (
 	"fmt"
-	"strings"
 )
 
 // containerSlayer contains all the functions that are useful
@@ -26,13 +25,12 @@ func (s *containerSlayer) Delete(ctn *containerCore) error {
 func (s *containerSlayer) DeleteWithSubContainers(ctn *containerCore) error {
 	ctn.m.Lock()
 	clone := &containerCore{
-		definitions:     ctn.definitions,
-		children:        ctn.children,
-		unscopedChild:   ctn.unscopedChild,
-		parent:          ctn.parent,
-		objects:         ctn.objects,
-		unsharedObjects: ctn.unsharedObjects,
-		dependencies:    ctn.dependencies,
+		definitions:   ctn.definitions,
+		children:      ctn.children,
+		unscopedChild: ctn.unscopedChild,
+		parent:        ctn.parent,
+		objects:       ctn.objects,
+		dependencies:  ctn.dependencies,
 	}
 	ctn.closed = true
 	ctn.m.Unlock()
@@ -58,21 +56,13 @@ func (s *containerSlayer) deleteClone(ctn *containerCore, clone *containerCore) 
 		errBuilder.Add(err)
 	}
 
-	names, err := clone.dependencies.TopologicalOrdering()
+	keys, err := clone.dependencies.TopologicalOrdering()
 	errBuilder.Add(err)
 
-	for _, name := range names {
-		def, hasDef := clone.definitions[strings.Split(name, UnsharedSeparator)[0]]
-		if !hasDef {
-			continue
-		}
-
-		if obj, hasObj := clone.objects[name]; hasObj {
-			err := s.closeObject(obj, def)
-			errBuilder.Add(err)
-		}
-
-		if obj, hasObj := clone.unsharedObjects[name]; hasObj {
+	for _, key := range keys {
+		obj, hasObj := clone.objects[key]
+		def, hasDef := clone.definitions[key.defName]
+		if hasObj && hasDef {
 			err := s.closeObject(obj, def)
 			errBuilder.Add(err)
 		}
