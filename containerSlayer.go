@@ -56,12 +56,12 @@ func (s *containerSlayer) deleteClone(ctn *containerCore, clone *containerCore) 
 		errBuilder.Add(err)
 	}
 
-	names, err := clone.dependencies.TopologicalOrdering()
+	keys, err := clone.dependencies.TopologicalOrdering()
 	errBuilder.Add(err)
 
-	for _, name := range names {
-		obj, hasObj := clone.objects[name]
-		def, hasDef := clone.definitions[name]
+	for _, key := range keys {
+		obj, hasObj := clone.objects[key]
+		def, hasDef := clone.definitions[key.defName]
 		if hasObj && hasDef {
 			err := s.closeObject(obj, def)
 			errBuilder.Add(err)

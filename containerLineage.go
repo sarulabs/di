@@ -58,7 +58,7 @@ func (l *containerLineage) createChild(ctn *container) (*container, error) {
 			parent:        ctn.containerCore,
 			children:      map[*containerCore]struct{}{},
 			unscopedChild: nil,
-			objects:       map[string]interface{}{},
+			objects:       map[objectKey]interface{}{},
 			dependencies:  newGraph(),
 		},
 	}, nil

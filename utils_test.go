@@ -13,32 +13,32 @@ func TestBuiltList(t *testing.T) {
 	last, hasLast := list.LastElement()
 
 	require.Equal(t, 0, len(list.OrderedList()))
-	require.False(t, list.Has("key"))
-	require.Equal(t, "", last)
+	require.False(t, list.HasDef("key"))
+	require.Equal(t, objectKey{defName: ""}, last)
 	require.False(t, hasLast)
 
-	list = list.Add("a")
-	newList := list.Add("b")
-	newList = newList.Add("c")
+	list = list.Add(objectKey{defName: "a"})
+	newList := list.Add(objectKey{defName: "b"})
+	newList = newList.Add(objectKey{defName: "c"})
 
 	last, hasLast = list.LastElement()
 
 	require.Equal(t, []string{"a"}, list.OrderedList())
-	require.True(t, list.Has("a"))
-	require.False(t, list.Has("b"))
-	require.False(t, list.Has("c"))
-	require.False(t, list.Has("d"))
-	require.Equal(t, "a", last)
+	require.True(t, list.HasDef("a"))
+	require.False(t, list.HasDef("b"))
+	require.False(t, list.HasDef("c"))
+	require.False(t, list.HasDef("d"))
+	require.Equal(t, objectKey{defName: "a"}, last)
 	require.True(t, hasLast)
 
 	last, hasLast = newList.LastElement()
 
 	require.Equal(t, []string{"a", "b", "c"}, newList.OrderedList())
-	require.True(t, newList.Has("a"))
-	require.True(t, newList.Has("b"))
-	require.True(t, newList.Has("c"))
-	require.False(t, newList.Has("d"))
-	require.Equal(t, "c", last)
+	require.True(t, newList.HasDef("a"))
+	require.True(t, newList.HasDef("b"))
+	require.True(t, newList.HasDef("c"))
+	require.False(t, newList.HasDef("d"))
+	require.Equal(t, objectKey{defName: "c"}, last)
 	require.True(t, hasLast)
 }
 
@@ -47,64 +47,64 @@ func TestGraph(t *testing.T) {
 		descr       string
 		vertices    []string
 		edges       [][]string
-		expected    []string
+		expected    []objectKey
 		expectedErr bool
 	}{
 		{
 			descr:    "test dag 1",
 			vertices: []string{},
 			edges: [][]string{
-				[]string{"X", "A"},
-				[]string{"X", "B"},
-				[]string{"Y", "A"},
-				[]string{"Y", "B"},
-				[]string{"A", "C"},
+				{"X", "A"},
+				{"X", "B"},
+				{"Y", "A"},
+				{"Y", "B"},
+				{"A", "C"},
 			},
-			expected:    []string{"Y", "X", "B", "A", "C"},
+			expected:    []objectKey{{defName: "Y"}, {defName: "X"}, {defName: "B"}, {defName: "A"}, {defName: "C"}},
 			expectedErr: false,
 		},
 		{
 			descr:    "test dag 2",
 			vertices: []string{"NOT LINKED"},
 			edges: [][]string{
-				[]string{"X", "A"},
-				[]string{"X", "B"},
-				[]string{"Y", "A"},
-				[]string{"Y", "B"},
-				[]string{"A", "C"},
-				[]string{"X", "A"}, // redeclared
+				{"X", "A"},
+				{"X", "B"},
+				{"Y", "A"},
+				{"Y", "B"},
+				{"A", "C"},
+				{"X", "A"}, // redeclared
 			},
-			expected:    []string{"Y", "X", "B", "A", "C", "NOT LINKED"},
+			expected:    []objectKey{{defName: "Y"}, {defName: "X"}, {defName: "B"}, {defName: "A"}, {defName: "C"}, {defName: "NOT LINKED"}},
 			expectedErr: false,
 		},
 		{
 			descr: "test dag 3",
 			edges: [][]string{
-				[]string{"5", "11"},
-				[]string{"7", "11"},
-				[]string{"7", "8"},
-				[]string{"3", "8"},
-				[]string{"3", "10"},
-				[]string{"11", "2"},
-				[]string{"11", "9"},
-				[]string{"11", "10"},
-				[]string{"8", "9"},
+				{"5", "11"},
+				{"7", "11"},
+				{"7", "8"},
+				{"3", "8"},
+				{"3", "10"},
+				{"11", "2"},
+				{"11", "9"},
+				{"11", "10"},
+				{"8", "9"},
 			},
-			expected:    []string{"3", "7", "8", "5", "11", "10", "9", "2"},
+			expected:    []objectKey{{defName: "3"}, {defName: "7"}, {defName: "8"}, {defName: "5"}, {defName: "11"}, {defName: "10"}, {defName: "9"}, {defName: "2"}},
 			expectedErr: false,
 		},
 		{
 			descr:    "test dag cycle",
 			vertices: []string{},
 			edges: [][]string{
-				[]string{"X", "A"},
-				[]string{"X", "B"},
-				[]string{"Y", "A"},
-				[]string{"Y", "B"},
-				[]string{"A", "C"},
-				[]string{"C", "X"},
+				{"X", "A"},
+				{"X", "B"},
+				{"Y", "A"},
+				{"Y", "B"},
+				{"A", "C"},
+				{"C", "X"},
 			},
-			expected:    []string{"X", "A", "B", "Y", "C"},
+			expected:    []objectKey{{defName: "X"}, {defName: "A"}, {defName: "B"}, {defName: "Y"}, {defName: "C"}},
 			expectedErr: true,
 		},
 	}
@@ -113,11 +113,11 @@ func TestGraph(t *testing.T) {
 		g := newGraph()
 
 		for _, v := range test.vertices {
-			g.AddVertex(v)
+			g.AddVertex(objectKey{defName: v})
 		}
 
 		for _, e := range test.edges {
-			g.AddEdge(e[0], e[1])
+			g.AddEdge(objectKey{defName: e[0]}, objectKey{defName: e[1]})
 		}
 
 		l, err := g.TopologicalOrdering()

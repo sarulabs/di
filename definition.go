@@ -2,11 +2,12 @@ package di
 
 // Def contains information to build and close an object inside a Container.
 type Def struct {
-	Name  string
-	Scope string
-	Build func(ctn Container) (interface{}, error)
-	Close func(obj interface{}) error
-	Tags  []Tag
+	Build    func(ctn Container) (interface{}, error)
+	Close    func(obj interface{}) error
+	Name     string
+	Scope    string
+	Tags     []Tag
+	Unshared bool
 }
 
 // Tag can contain more specific information about a Definition.

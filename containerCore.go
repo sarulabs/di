@@ -14,7 +14,8 @@ type containerCore struct {
 	parent          *containerCore
 	children        map[*containerCore]struct{}
 	unscopedChild   *containerCore
-	objects         map[string]interface{}
+	objects         map[objectKey]interface{}
+	lastUniqueID    int
 	deleteIfNoChild bool
 	dependencies    *graph
 }
