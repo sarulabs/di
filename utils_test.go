@@ -13,7 +13,7 @@ func TestBuiltList(t *testing.T) {
 	last, hasLast := list.LastElement()
 
 	require.Equal(t, 0, len(list.OrderedList()))
-	require.False(t, list.Has(objectKey{defName: "key"}))
+	require.False(t, list.HasDef("key"))
 	require.Equal(t, objectKey{defName: ""}, last)
 	require.False(t, hasLast)
 
@@ -23,21 +23,21 @@ func TestBuiltList(t *testing.T) {
 
 	last, hasLast = list.LastElement()
 
-	require.Equal(t, []objectKey{{defName: "a"}}, list.OrderedList())
-	require.True(t, list.Has(objectKey{defName: "a"}))
-	require.False(t, list.Has(objectKey{defName: "b"}))
-	require.False(t, list.Has(objectKey{defName: "c"}))
-	require.False(t, list.Has(objectKey{defName: "d"}))
+	require.Equal(t, []string{"a"}, list.OrderedList())
+	require.True(t, list.HasDef("a"))
+	require.False(t, list.HasDef("b"))
+	require.False(t, list.HasDef("c"))
+	require.False(t, list.HasDef("d"))
 	require.Equal(t, objectKey{defName: "a"}, last)
 	require.True(t, hasLast)
 
 	last, hasLast = newList.LastElement()
 
-	require.Equal(t, []objectKey{{defName: "a"}, {defName: "b"}, {defName: "c"}}, newList.OrderedList())
-	require.True(t, newList.Has(objectKey{defName: "a"}))
-	require.True(t, newList.Has(objectKey{defName: "b"}))
-	require.True(t, newList.Has(objectKey{defName: "c"}))
-	require.False(t, newList.Has(objectKey{defName: "d"}))
+	require.Equal(t, []string{"a", "b", "c"}, newList.OrderedList())
+	require.True(t, newList.HasDef("a"))
+	require.True(t, newList.HasDef("b"))
+	require.True(t, newList.HasDef("c"))
+	require.False(t, newList.HasDef("d"))
 	require.Equal(t, objectKey{defName: "c"}, last)
 	require.True(t, hasLast)
 }

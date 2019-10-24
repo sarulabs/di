@@ -22,35 +22,35 @@ type builtList struct {
 	// The key is the name of the element,
 	// and the value is the number of elements
 	// in the map when the element is inserted.
-	elements map[objectKey]int
+	elements map[string]int
 }
 
 // Add adds an element in the map.
 func (l builtList) Add(objKey objectKey) builtList {
 	newL := builtList{
 		last:     objKey,
-		elements: map[objectKey]int{},
+		elements: map[string]int{},
 	}
 
 	for k, v := range l.elements {
 		newL.elements[k] = v
 	}
 
-	newL.elements[objKey] = len(newL.elements)
+	newL.elements[objKey.defName] = len(newL.elements)
 
 	return newL
 }
 
-// Has checks if the builtList contains the given element.
-func (l builtList) Has(objKey objectKey) bool {
-	_, ok := l.elements[objKey]
+// HasDef checks if the builtList contains the given element.
+func (l builtList) HasDef(name string) bool {
+	_, ok := l.elements[name]
 	return ok
 }
 
 // OrderedList returns the list of elements in the order
 // they were inserted.
-func (l builtList) OrderedList() []objectKey {
-	s := make([]objectKey, len(l.elements))
+func (l builtList) OrderedList() []string {
+	s := make([]string, len(l.elements))
 
 	for name, i := range l.elements {
 		s[i] = name

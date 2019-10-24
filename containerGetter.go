@@ -35,8 +35,7 @@ func (g *containerGetter) SafeGet(ctn *container, name string) (interface{}, err
 		return nil, fmt.Errorf("could not get `%s` because the definition does not exist", name)
 	}
 
-	objKey := objectKey{defName: def.Name}
-	if ctn.builtList.Has(objKey) {
+	if ctn.builtList.HasDef(name) {
 		return nil, fmt.Errorf(
 			"could not get `%s` because there is a cycle in the object definitions (%v)",
 			def.Name, ctn.builtList.OrderedList(),
