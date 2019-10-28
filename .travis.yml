@@ -5,17 +5,11 @@ go:
 
 env:
   global:
-    - CC_TEST_REPORTER_ID=d37ac2e7e99f7f26c1eff9d4f97b683945e5ed5c21ff57622fde346f5bb26a2f
+    - COVERALLS_TOKEN=EQVvNUzYGitRt51wIB1jaqJYttnABN7cY
 
-install:
+before_install:
+  - go get github.com/mattn/goveralls
   - go get github.com/stretchr/testify
 
-before_script:
-  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
-  - chmod +x ./cc-test-reporter
-  - ./cc-test-reporter before-build
-
-script: go test -coverprofile=c.out -v ./...
-
-after_script:
-  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
+script:
+  - $GOPATH/bin/goveralls -service=travis-ci
