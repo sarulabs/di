@@ -102,6 +102,16 @@ func (b *Builder) add(def Def) error {
 	return nil
 }
 
+// Set is a shortcut to add a definition for an already built object.
+func (b *Builder) Set(name string, obj interface{}) error {
+	return b.add(Def{
+		Name: name,
+		Build: func(ctn Container) (interface{}, error) {
+			return obj, nil
+		},
+	})
+}
+
 // Build creates a Container in the most generic scope
 // with all the definitions registered in the Builder.
 func (b *Builder) Build() Container {

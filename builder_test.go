@@ -106,6 +106,21 @@ func TestAddErrors(t *testing.T) {
 	require.Nil(t, err)
 }
 
+func TestSet(t *testing.T) {
+	b, _ := NewBuilder()
+
+	var err error
+
+	err = b.Set("", "error")
+	require.NotNil(t, err, "should not be able to set an object without a name")
+
+	err = b.Set("key", "value")
+	require.Nil(t, err)
+
+	ctn := b.Build()
+	require.Equal(t, "value", ctn.Get("key").(string))
+}
+
 func TestBuild(t *testing.T) {
 	ctn := (&Builder{}).Build()
 	require.Nil(t, ctn, "should have at least one scope to use Build")

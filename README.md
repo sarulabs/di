@@ -70,6 +70,15 @@ builder.Add(di.Def{
 })
 ```
 
+If you have an already built object to put in the container, you can use the `Set` shortcut:
+
+```go
+obj := &MyObject{}
+
+builder, _ := di.NewBuilder()
+builder.Set("my-object", obj)
+```
+
 
 ## Object retrieval
 
