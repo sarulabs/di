@@ -79,6 +79,23 @@ builder, _ := di.NewBuilder()
 builder.Set("my-object", obj)
 ```
 
+Note that you can override a definition by adding a definition with the same name. This could be useful in some contexts (for example in unit tests to mock a dependency):
+
+```go
+builder.Set("my-object", "A")
+
+// override the previous definition
+builder.Add(di.Def{
+    Name: "my-object",
+    Build: func(ctn di.Container) (interface{}, error) {
+        return "B", nil
+    },
+})
+
+// override the definition again, as if the two previous ones never existed
+builder.Set("my-object", "C")
+```
+
 
 ## Object retrieval
 
