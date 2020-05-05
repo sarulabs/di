@@ -16,7 +16,7 @@ DI is focused on performance. It does not rely on reflection.
 # Table of contents
 
 [![Build Status](https://travis-ci.org/sarulabs/di.svg?branch=master)](https://travis-ci.org/sarulabs/di)
-[![GoDoc](https://godoc.org/github.com/sarulabs/di?status.svg)](http://godoc.org/github.com/sarulabs/di)
+[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/sarulabs/di/v2?tab=doc)
 [![Coverage Status](https://coveralls.io/repos/github/sarulabs/di/badge.svg?branch=fix_cover)](https://coveralls.io/github/sarulabs/di?branch=fix_cover)
 [![Maintainability](https://api.codeclimate.com/v1/badges/5af97cbfd6e4fe7257e3/maintainability)](https://codeclimate.com/github/sarulabs/di/maintainability)
 [![codebeat](https://codebeat.co/badges/d6095401-7dcf-4f63-ab75-7fac5c6aa898)](https://codebeat.co/projects/github-com-sarulabs-di)
