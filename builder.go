@@ -72,6 +72,8 @@ func (b *Builder) IsDefined(name string) bool {
 
 // Add adds one or more definitions in the Builder.
 // It returns an error if a definition can not be added.
+// If a definition with the same name has already been added,
+// it will be replaced by the new one, as if the first one never existed.
 func (b *Builder) Add(defs ...Def) error {
 	for _, def := range defs {
 		if err := b.add(def); err != nil {
