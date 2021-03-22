@@ -102,7 +102,7 @@ func (s *containerSlayer) closeObject(obj interface{}, def Def) (err error) {
 	}
 
 	if err != nil {
-		return fmt.Errorf("could not close `%s`: %s", def.Name, err.Error())
+		return fmt.Errorf("could not close `%s`: %+v", def.Name, err)
 	}
 
 	return err
