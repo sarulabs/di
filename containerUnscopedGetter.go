@@ -48,7 +48,7 @@ func (g *containerUnscopedGetter) unscopedSafeGet(ctn *container, def Def) (inte
 
 	child, err := g.getUnscopedChild(ctn)
 	if err != nil {
-		return nil, fmt.Errorf("could not get `%s` because %s", def.Name, err.Error())
+		return nil, fmt.Errorf("could not get `%s` because %+v", def.Name, err)
 	}
 
 	return g.unscopedSafeGet(child, def)

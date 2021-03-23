@@ -152,7 +152,7 @@ func (g *containerGetter) formatCloseErr(err error) string {
 	if err == nil {
 		return ""
 	}
-	return " (with an error: " + err.Error() + ")"
+	return fmt.Sprintf(" (with an error: %+v)", err)
 }
 
 func (g *containerGetter) build(ctn *container, def Def, objKey objectKey) (obj interface{}, err error) {
@@ -168,7 +168,7 @@ func (g *containerGetter) build(ctn *container, def Def, objKey objectKey) (obj 
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not build `%s`: %s", def.Name, err.Error())
+		return nil, fmt.Errorf("could not build `%s`: %+v", def.Name, err)
 	}
 
 	return obj, nil
