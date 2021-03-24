@@ -158,7 +158,7 @@ func (g *containerGetter) formatCloseErr(err error) string {
 func (g *containerGetter) build(ctn *container, def Def, objKey objectKey) (obj interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("could not build `%s` because the build function panicked: %s", def.Name, r)
+			err = fmt.Errorf("could not build `%s` because the build function panicked: %+v", def.Name, r)
 		}
 	}()
 
