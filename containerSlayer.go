@@ -89,7 +89,7 @@ func (s *containerSlayer) removeChild(ctn *containerCore, child *containerCore) 
 func (s *containerSlayer) closeObject(obj interface{}, def Def) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("could not close `%s`, Close function panicked: %s", def.Name, r)
+			err = fmt.Errorf("could not close `%s`, Close function panicked: %+v", def.Name, r)
 		}
 	}()
 
