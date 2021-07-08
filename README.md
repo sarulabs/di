@@ -26,6 +26,7 @@ DI is focused on performance. It does not rely on reflection.
 	* [Object definition](#object-definition)
 	* [Object retrieval](#object-retrieval)
 	* [Definitions and dependencies](#definitions-and-dependencies)
+	* [Unshared objects](#unshared-objects)
 - [Scopes](#scopes)
     * [The principle](#the-principle)
     * [Scopes in practice](#scopes-in-practice)
@@ -108,10 +109,6 @@ obj := ctn.Get("my-object").(*MyObject) // retrieve the object
 
 The `Get` method returns an `interface{}`. You need to cast the interface before using the object.
 
-By default the objects are shared that means what they stored as singletons in the Container. You will retrieve the 
-exact same object every time you call the `Get` method on the same Container. The `Build` function will only be called 
-once. In case when you don't want the objects to be shared set the `Unshared` property of object definition to true.
-
 ## Definitions and dependencies
 
 The `Build` function can also use the `Get` method of the Container. That allows to build objects that depend on other objects defined in the Container.
@@ -129,6 +126,26 @@ di.Def{
 
 You can not create a cycle in the definitions (A needs B and B needs A). If that happens, an error will be returned at the time of the creation of the object.
 
+## Unshared objects
+
+By default, the `Get` method called on the same container always returns the same object.
+The object is created when the `Get` method is called for the first time.
+It is then stored inside the container and the same instance is returned in the next calls.
+That means that the `Build` function is only called once.
+
+If you want to retrieve a new instance of the object each time the `Get` method is called, you need to set the `Unshared` field of the definition to `true`.
+
+```go
+builder.Add(di.Def{
+    Name: "my-object",
+    Unshared: true, // The Build function will be called each time.
+    Build: func(ctn di.Container) (interface{}, error) {
+        return &MyObject{}, nil
+    },
+})
+
+ctn.Get("my-object").(*MyObject) == ctn.Get("my-object").(*MyObject) // false
+```
 
 # Scopes
 
