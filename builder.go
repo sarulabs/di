@@ -3,15 +3,21 @@ package di
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"sort"
 )
 
 // Builder can be used to create a Container.
 // The Builder should be created with NewBuilder.
 // Then you can add definitions with the Add method,
 // and finally build the Container with the Build method.
+//
+// Consider using the EnhancedBuilder that provides more features.
 type Builder struct {
-	definitions DefMap
-	scopes      ScopeList
+	definitions    DefMap
+	scopes         ScopeList
+	insertionOrder map[string]int
+	numAdded       int
 }
 
 // NewBuilder is the only way to create a working Builder.
@@ -30,8 +36,10 @@ func NewBuilder(scopes ...string) (*Builder, error) {
 	}
 
 	return &Builder{
-		definitions: DefMap{},
-		scopes:      scopes,
+		definitions:    DefMap{},
+		scopes:         scopes,
+		insertionOrder: map[string]int{},
+		numAdded:       0,
 	}, nil
 }
 
@@ -100,6 +108,8 @@ func (b *Builder) add(def Def) error {
 	}
 
 	b.definitions[def.Name] = def
+	b.insertionOrder[def.Name] = b.numAdded
+	b.numAdded++
 
 	return nil
 }
@@ -118,27 +128,77 @@ func (b *Builder) Set(name string, obj interface{}) error {
 // with all the definitions registered in the Builder.
 func (b *Builder) Build() Container {
 	if err := checkScopes(b.scopes); err != nil {
-		return nil
+		return newClosedContainer()
 	}
 
-	defs := b.Definitions()
-
-	for name, def := range defs {
+	// Update definition scopes.
+	for name, def := range b.definitions {
 		if def.Scope == "" {
 			def.Scope = b.scopes[0]
-			defs[name] = def
+		}
+		b.definitions[name] = def
+	}
+
+	// Put definitions in a slice and sort them by insertion order.
+	definitions := []Def{}
+
+	for _, def := range b.definitions {
+		definitions = append(definitions, def)
+	}
+
+	sort.Slice(definitions, func(i, j int) bool {
+		return b.insertionOrder[definitions[i].Name] < b.insertionOrder[definitions[j].Name]
+	})
+
+	// Generate the indexes based on the definitions.
+	indexesByName := make(map[string]int, len(definitions))
+	indexesByType := map[reflect.Type][]int{}
+	definitionScopeLevels := make([]int, len(definitions))
+
+	for index, def := range definitions {
+		// Update the definition bound fields.
+		def.builderBound = true
+		def.builderIndex = index
+		definitions[index] = def
+
+		// Update indexes and definitionScopeLevels slices.
+		indexesByName[def.Name] = index
+		for _, defType := range def.Is {
+			indexesByType[defType] = append(indexesByType[defType], index)
+		}
+		for i, s := range b.scopes {
+			if s == def.Scope {
+				definitionScopeLevels[index] = i
+				break
+			}
 		}
 	}
 
-	return &container{
-		containerCore: &containerCore{
-			scopes:       b.scopes,
-			scope:        b.scopes[0],
-			definitions:  defs,
-			parent:       nil,
-			children:     map[*containerCore]struct{}{},
-			objects:      map[objectKey]interface{}{},
+	return Container{
+		core: &containerCore{
+			closed: false,
+
+			scopes:     b.scopes,
+			scopeLevel: 0,
+
+			parent:          nil,
+			children:        map[*containerCore]struct{}{},
+			unscopedChild:   nil,
+			deleteIfNoChild: false,
+
+			indexesByName:         indexesByName,
+			indexesByType:         indexesByType,
+			definitions:           definitions,
+			objects:               make([]interface{}, len(indexesByName)),
+			definitionScopeLevels: definitionScopeLevels,
+			isBuilt:               make([]int32, len(indexesByName)),
+			building:              make([]*buildingChan, len(indexesByName)),
+
+			unshared:      []interface{}{},
+			unsharedIndex: []int{},
+
 			dependencies: newGraph(),
 		},
+		builtList: make([]int, 0, 10),
 	}
 }

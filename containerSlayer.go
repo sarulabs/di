@@ -2,128 +2,144 @@ package di
 
 import (
 	"fmt"
+	"sync/atomic"
 )
 
-// containerSlayer contains all the functions that are useful
-// to delete a container.
-type containerSlayer struct{}
+// DeleteWithSubContainers takes all the objects saved in this Container
+// and calls the Close function of their Definition on them.
+// It will also call DeleteWithSubContainers on each child and remove its reference in the parent Container.
+// After deletion, the Container can no longer be used.
+// The sub-containers are deleted even if they are still used in other goroutines.
+// It can cause errors. You may want to use the Delete method instead.
+func (ctn Container) DeleteWithSubContainers() error {
+	return deleteContainerCore(ctn.core)
+}
 
-func (s *containerSlayer) Delete(ctn *containerCore) error {
-	ctn.m.Lock()
+// Delete works like DeleteWithSubContainers if the Container does not have any child.
+// But if the Container has sub-containers, it will not be deleted right away.
+// The deletion only occurs when all the sub-containers have been deleted manually.
+// So you have to call Delete or DeleteWithSubContainers on all the sub-containers.
+func (ctn Container) Delete() error {
+	ctn.core.m.Lock()
 
-	if len(ctn.children) > 0 {
-		ctn.deleteIfNoChild = true
-		ctn.m.Unlock()
+	if len(ctn.core.children) > 0 {
+		ctn.core.deleteIfNoChild = true
+		ctn.core.m.Unlock()
 		return nil
 	}
 
-	ctn.m.Unlock()
+	ctn.core.m.Unlock()
 
-	return s.DeleteWithSubContainers(ctn)
+	return deleteContainerCore(ctn.core)
 }
 
-func (s *containerSlayer) DeleteWithSubContainers(ctn *containerCore) error {
-	ctn.m.Lock()
-	clone := &containerCore{
-		definitions:   ctn.definitions,
-		children:      ctn.children,
-		unscopedChild: ctn.unscopedChild,
-		parent:        ctn.parent,
-		objects:       ctn.objects,
-		dependencies:  ctn.dependencies,
+// Clean deletes the sub-container created by UnscopedSafeGet, UnscopedGet or UnscopedFill.
+func (ctn Container) Clean() error {
+	ctn.core.m.Lock()
+	unscopedChild := ctn.core.unscopedChild
+	ctn.core.unscopedChild = nil
+	ctn.core.m.Unlock()
+
+	if unscopedChild != nil {
+		return deleteContainerCore(unscopedChild)
 	}
-	ctn.closed = true
-	ctn.m.Unlock()
 
-	return s.deleteClone(ctn, clone)
+	return nil
 }
 
-func (s *containerSlayer) deleteClone(ctn *containerCore, clone *containerCore) error {
+// IsClosed returns true if the Container has been deleted.
+func (ctn Container) IsClosed() bool {
+	ctn.core.m.RLock()
+	closed := ctn.core.closed
+	ctn.core.m.RUnlock()
+	return closed
+}
+
+func deleteContainerCore(core *containerCore) error {
+	core.m.Lock()
+	clone := &containerCore{
+		parent:        core.parent,
+		children:      core.children,
+		unscopedChild: core.unscopedChild,
+		indexesByName: core.indexesByName,
+		indexesByType: core.indexesByType,
+		definitions:   core.definitions,
+		objects:       core.objects,
+		unshared:      core.unshared,
+		unsharedIndex: core.unsharedIndex,
+		dependencies:  core.dependencies,
+	}
+	core.closed = true
+	core.m.Unlock()
+
+	// Stop returning the already built objects.
+	for i := 0; i < len(core.isBuilt); i++ {
+		atomic.StoreInt32(&core.isBuilt[i], 0)
+	}
+
+	// Delete clone.
 	errBuilder := &multiErrBuilder{}
 
 	for child := range clone.children {
-		err := s.DeleteWithSubContainers(child)
-		errBuilder.Add(err)
+		errBuilder.Add(deleteContainerCore(child))
 	}
 
 	if clone.unscopedChild != nil {
-		err := s.DeleteWithSubContainers(clone.unscopedChild)
-		errBuilder.Add(err)
+		errBuilder.Add(deleteContainerCore(clone.unscopedChild))
 	}
 
 	if clone.parent != nil {
-		err := s.removeChild(clone.parent, ctn)
-		errBuilder.Add(err)
+		// Remove from parent.
+		clone.parent.m.Lock()
+
+		delete(clone.parent.children, core)
+
+		if !clone.parent.deleteIfNoChild || len(clone.parent.children) > 0 {
+			clone.parent.m.Unlock()
+		} else {
+			clone.parent.m.Unlock()
+			errBuilder.Add(deleteContainerCore(clone.parent))
+		}
 	}
 
-	keys, err := clone.dependencies.TopologicalOrdering()
+	// Close objects in the right order.
+	indexes, err := clone.dependencies.TopologicalOrdering()
 	errBuilder.Add(err)
 
-	for _, key := range keys {
-		obj, hasObj := clone.objects[key]
-		def, hasDef := clone.definitions[key.defName]
-		if hasObj && hasDef {
-			err := s.closeObject(obj, def)
-			errBuilder.Add(err)
+	for _, index := range indexes {
+		if index >= 0 {
+			errBuilder.Add(closeObject(
+				clone.objects[index],
+				clone.definitions[index].Close,
+				clone.definitions[index].Name,
+			))
+		} else {
+			errBuilder.Add(closeObject(
+				clone.unshared[-index-1],
+				clone.definitions[clone.unsharedIndex[-index-1]].Close,
+				clone.definitions[clone.unsharedIndex[-index-1]].Name,
+			))
 		}
+
 	}
 
 	return errBuilder.Build()
 }
 
-func (s *containerSlayer) removeChild(ctn *containerCore, child *containerCore) error {
-	ctn.m.Lock()
-
-	delete(ctn.children, child)
-
-	if !ctn.deleteIfNoChild || len(ctn.children) > 0 {
-		ctn.m.Unlock()
-		return nil
-	}
-
-	ctn.m.Unlock()
-
-	return s.DeleteWithSubContainers(ctn)
-}
-
-func (s *containerSlayer) closeObject(obj interface{}, def Def) (err error) {
+func closeObject(obj interface{}, closeFunc func(interface{}) error, defName string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("could not close `%s`, Close function panicked: %+v", def.Name, r)
+			err = fmt.Errorf("could not close `%s`, Close function panicked: %+v", defName, r)
 		}
 	}()
 
-	if _, isBuilding := obj.(buildingChan); isBuilding {
-		return nil
-	}
-
-	if def.Close != nil {
-		err = def.Close(obj)
+	if closeFunc != nil {
+		err = closeFunc(obj)
 	}
 
 	if err != nil {
-		return fmt.Errorf("could not close `%s`: %+v", def.Name, err)
+		return fmt.Errorf("could not close `%s`: %+v", defName, err)
 	}
 
 	return err
-}
-
-func (s *containerSlayer) IsClosed(ctn *containerCore) bool {
-	ctn.m.RLock()
-	closed := ctn.closed
-	ctn.m.RUnlock()
-	return closed
-}
-
-func (s *containerSlayer) Clean(ctn *containerCore) error {
-	ctn.m.Lock()
-	unscopedChild := ctn.unscopedChild
-	ctn.unscopedChild = nil
-	ctn.m.Unlock()
-
-	if unscopedChild != nil {
-		return s.DeleteWithSubContainers(unscopedChild)
-	}
-
-	return nil
 }

@@ -1,6 +1,7 @@
 package di
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func TestNewBuilder(t *testing.T) {
 	require.Equal(t, ScopeList{App, Request, SubRequest}, b.Scopes())
 }
 
-func TestDefinitions(t *testing.T) {
+func TestBuilderDefinitions(t *testing.T) {
 	b, _ := NewBuilder()
 
 	b.Add([]Def{
@@ -46,7 +47,7 @@ func TestDefinitions(t *testing.T) {
 	require.Equal(t, "o2", defs["o2"].Name)
 }
 
-func TestIsDefined(t *testing.T) {
+func TestBuilderIsDefined(t *testing.T) {
 	b, _ := NewBuilder()
 
 	b.Add(Def{
@@ -59,7 +60,7 @@ func TestIsDefined(t *testing.T) {
 	require.False(t, b.IsDefined("undefined"))
 }
 
-func TestServiceOverride(t *testing.T) {
+func TestBuilderServiceOverride(t *testing.T) {
 	b, _ := NewBuilder()
 
 	var err error
@@ -83,7 +84,7 @@ func TestServiceOverride(t *testing.T) {
 	require.Equal(t, "second", b.Build().Get("name").(string))
 }
 
-func TestAddErrors(t *testing.T) {
+func TestBuilderAddErrors(t *testing.T) {
 	b, _ := NewBuilder()
 
 	var err error
@@ -106,7 +107,7 @@ func TestAddErrors(t *testing.T) {
 	require.Nil(t, err)
 }
 
-func TestSet(t *testing.T) {
+func TestBuilderSet(t *testing.T) {
 	b, _ := NewBuilder()
 
 	var err error
@@ -121,9 +122,9 @@ func TestSet(t *testing.T) {
 	require.Equal(t, "value", ctn.Get("key").(string))
 }
 
-func TestBuild(t *testing.T) {
+func TestBuilderBuild(t *testing.T) {
 	ctn := (&Builder{}).Build()
-	require.Nil(t, ctn, "should have at least one scope to use Build")
+	require.True(t, ctn.core.closed, "should have at least one scope to use Build")
 
 	b, _ := NewBuilder()
 
@@ -144,4 +145,21 @@ func TestBuild(t *testing.T) {
 	require.Len(t, app.Definitions(), 2)
 	require.Equal(t, App, app.Definitions()["o1"].Scope)
 	require.Equal(t, Request, app.Definitions()["o2"].Scope)
+}
+
+func TestBuilderGet(t *testing.T) {
+	var err error
+
+	b, _ := NewBuilder()
+
+	err = b.Add(*NewDefForType(mockA{}).SetName("nameA").SetIs(mockA{}))
+	require.Nil(t, err)
+	err = b.Add(*NewDefForType(&mockB{}).SetName("nameB").SetIs(&mockB{}))
+	require.Nil(t, err)
+	err = b.Add(*NewDefFor(mockC{SField: "ok"}).SetName("nameC").SetIs(mockC{}))
+	require.Nil(t, err)
+
+	app := b.Build()
+	a := app.Get(reflect.TypeOf(mockA{})).(mockA)
+	require.Equal(t, "ok", a.BField.CField.SField)
 }

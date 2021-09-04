@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetterGet(t *testing.T) {
+func TestGetterSafeGet(t *testing.T) {
 	builder, _ := NewEnhancedBuilder()
 
 	var defA, defB, defC, defBuildErr, defBuildPanic *Def
@@ -21,9 +21,11 @@ func TestGetterGet(t *testing.T) {
 		Name:  "defA",
 		Scope: SubRequest,
 		Build: func(ctn Container) (interface{}, error) {
+			b, _ := ctn.SafeGet(defB)
+			c, _ := ctn.SafeGet(defC)
 			return &mockA{
-				BField: ctn.Get(defB).(*mockB),
-				CField: ctn.Get(defC).(mockC),
+				BField: b.(*mockB),
+				CField: c.(mockC),
 				SField: "a",
 			}, nil
 		},
@@ -36,8 +38,9 @@ func TestGetterGet(t *testing.T) {
 		Name:  "defB",
 		Scope: Request,
 		Build: func(ctn Container) (interface{}, error) {
+			c, _ := ctn.SafeGet(defC)
 			return &mockB{
-				CField: ctn.Get(defC).(mockC),
+				CField: c.(mockC),
 			}, nil
 		},
 		Is: NewIs(&mockB{}),
@@ -78,103 +81,118 @@ func TestGetterGet(t *testing.T) {
 	request, _ := app.SubContainer()
 	subrequest, _ := request.SubContainer()
 
-	var a *mockA
+	var a interface{}
 
-	a = subrequest.Get(defA).(*mockA)
-	require.Equal(t, "ok", a.BField.CField.SField)
-	a = subrequest.Get(*defA).(*mockA)
-	require.Equal(t, "ok", a.BField.CField.SField)
-	a = subrequest.Get(defA.Index()).(*mockA)
-	require.Equal(t, "ok", a.BField.CField.SField)
-	a = subrequest.Get("defA").(*mockA)
-	require.Equal(t, "ok", a.BField.CField.SField)
-	a = subrequest.Get(reflect.TypeOf(&mockA{})).(*mockA)
-	require.Equal(t, "ok", a.BField.CField.SField)
+	a, err = subrequest.SafeGet(defA)
+	require.Nil(t, err)
+	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
+	a, err = subrequest.SafeGet(*defA)
+	require.Nil(t, err)
+	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
+	a, err = subrequest.SafeGet(defA.Index())
+	require.Nil(t, err)
+	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
+	a, err = subrequest.SafeGet("defA")
+	require.Nil(t, err)
+	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
+	a, err = subrequest.SafeGet(reflect.TypeOf(&mockA{}))
+	require.Nil(t, err)
+	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
 
-	var b *mockB
+	var b interface{}
 
-	b = subrequest.Get(defB).(*mockB)
-	require.Equal(t, "ok", b.CField.SField)
-	b = subrequest.Get(*defB).(*mockB)
-	require.Equal(t, "ok", b.CField.SField)
-	b = subrequest.Get(defB.Index()).(*mockB)
-	require.Equal(t, "ok", b.CField.SField)
-	b = subrequest.Get("defB").(*mockB)
-	require.Equal(t, "ok", b.CField.SField)
-	b = subrequest.Get(reflect.TypeOf(&mockB{})).(*mockB)
-	require.Equal(t, "ok", b.CField.SField)
+	b, err = subrequest.SafeGet(defB)
+	require.Nil(t, err)
+	require.Equal(t, "ok", b.(*mockB).CField.SField)
+	b, err = subrequest.SafeGet(*defB)
+	require.Nil(t, err)
+	require.Equal(t, "ok", b.(*mockB).CField.SField)
+	require.Nil(t, err)
+	b, err = subrequest.SafeGet(defB.Index())
+	require.Equal(t, "ok", b.(*mockB).CField.SField)
+	require.Nil(t, err)
+	b, err = subrequest.SafeGet("defB")
+	require.Nil(t, err)
+	require.Equal(t, "ok", b.(*mockB).CField.SField)
+	b, err = subrequest.SafeGet(reflect.TypeOf(&mockB{}))
+	require.Nil(t, err)
+	require.Equal(t, "ok", b.(*mockB).CField.SField)
 
-	var c mockC
+	var c interface{}
 
-	c = subrequest.Get(defC).(mockC)
-	require.Equal(t, "ok", c.SField)
-	c = subrequest.Get(*defC).(mockC)
-	require.Equal(t, "ok", c.SField)
-	c = subrequest.Get(defC.Index()).(mockC)
-	require.Equal(t, "ok", c.SField)
-	c = subrequest.Get("defC").(mockC)
-	require.Equal(t, "ok", c.SField)
-	c = subrequest.Get(reflect.TypeOf(mockC{})).(mockC)
-	require.Equal(t, "ok", c.SField)
+	c, err = subrequest.SafeGet(defC)
+	require.Nil(t, err)
+	require.Equal(t, "ok", c.(mockC).SField)
+	c, err = subrequest.SafeGet(*defC)
+	require.Nil(t, err)
+	require.Equal(t, "ok", c.(mockC).SField)
+	c, err = subrequest.SafeGet(defC.Index())
+	require.Nil(t, err)
+	require.Equal(t, "ok", c.(mockC).SField)
+	c, err = subrequest.SafeGet("defC")
+	require.Nil(t, err)
+	require.Equal(t, "ok", c.(mockC).SField)
+	c, err = subrequest.SafeGet(reflect.TypeOf(mockC{}))
+	require.Nil(t, err)
+	require.Equal(t, "ok", c.(mockC).SField)
 
 	// same object retrieved every time
-	oA1 := subrequest.Get(defA).(*mockA)
-	oA2 := subrequest.Get(defA).(*mockA)
-	require.True(t, oA1 == oA2)
-	oB1 := subrequest.Get(defB).(*mockB)
-	oB2 := subrequest.Get(defB).(*mockB)
-	require.True(t, oB1 == oB2)
-	oC1 := subrequest.Get(defC).(mockC)
-	oC2 := subrequest.Get(defC).(mockC)
-	require.True(t, oC1 == oC2)
+	var a2, b2, c2 interface{}
+	a, err = subrequest.SafeGet(defA)
+	require.Nil(t, err)
+	a2, err = subrequest.SafeGet(defA)
+	require.Nil(t, err)
+	b, err = subrequest.SafeGet(defB)
+	require.Nil(t, err)
+	b2, err = subrequest.SafeGet(defB)
+	require.Nil(t, err)
+	c, err = subrequest.SafeGet(defC)
+	require.Nil(t, err)
+	c2, err = subrequest.SafeGet(defC)
+	require.Nil(t, err)
+	require.True(t, a.(*mockA) == a2.(*mockA))
+	require.True(t, b.(*mockB) == b2.(*mockB))
+	require.True(t, c.(mockC) == c2.(mockC))
 
 	// unknown definitions
-	require.Panics(t, func() {
-		app.Get("unknown-name")
-	})
-	require.Panics(t, func() {
-		app.Get(Def{})
-	})
-	require.Panics(t, func() {
-		app.Get(&Def{})
-	})
-	require.Panics(t, func() {
-		app.Get(-1)
-	})
-	require.Panics(t, func() {
-		app.Get(1000)
-	})
-	require.Panics(t, func() {
-		app.Get(reflect.TypeOf(mockD{}))
-	})
+	_, err = app.SafeGet("unknown-name")
+	require.NotNil(t, err)
+	_, err = app.SafeGet(Def{})
+	require.NotNil(t, err)
+	_, err = app.SafeGet(&Def{})
+	require.NotNil(t, err)
+	_, err = app.SafeGet(-1)
+	require.NotNil(t, err)
+	_, err = app.SafeGet(1000)
+	require.NotNil(t, err)
+	_, err = app.SafeGet(reflect.TypeOf(mockD{}))
+	require.NotNil(t, err)
 
 	// build errors
-	require.Panics(t, func() {
-		app.Get(defBuildErr)
-	})
-	require.Panics(t, func() {
-		app.Get(defBuildPanic)
-	})
+	_, err = app.SafeGet(defBuildErr)
+	require.NotNil(t, err)
+	_, err = app.SafeGet(defBuildPanic)
+	require.NotNil(t, err)
 
 	// scope errors
-	require.Panics(t, func() {
-		app.Get(defA)
-	})
-	require.Panics(t, func() {
-		app.Get(defB)
-	})
-	require.Equal(t, "ok", app.Get(defC).(mockC).SField)
+	_, err = app.SafeGet(defA)
+	require.NotNil(t, err)
+	_, err = app.SafeGet(defB)
+	require.NotNil(t, err)
+	c, err = app.SafeGet(defC)
+	require.Nil(t, err)
+	require.Equal(t, "ok", c.(mockC).SField)
 
 	// after deletion only already built objects can be retrieved
 	subrequest.Delete()
 	request.Delete()
 	app.Delete()
-	require.Panics(t, func() {
-		app.Get(defC)
-	})
+	_, err = app.SafeGet(defC)
+	require.NotNil(t, err)
+
 }
 
-func TestGetterGetUnshared(t *testing.T) {
+func TestGetterSafeGetUnshared(t *testing.T) {
 	b, _ := NewEnhancedBuilder()
 
 	b.Add(&Def{
@@ -207,29 +225,32 @@ func TestGetterGetUnshared(t *testing.T) {
 	var app, _ = b.Build()
 
 	// should retrieve different object every time
-	obj1 := app.Get("unshared")
-	obj2 := app.Get("unshared")
+	obj1, err := app.SafeGet("unshared")
+	require.Nil(t, err)
+	obj2, err := app.SafeGet("unshared")
+	require.Nil(t, err)
 
 	require.False(t, obj1 == obj2)
 
 	// build error
-	require.Panics(t, func() {
-		app.Get("unshared-error")
-	})
+	_, err = app.SafeGet("unshared-error")
+	require.NotNil(t, err)
 
 	// after deletion it is only possible to build definitions without a close function
-	app.Get("unshared")
-	app.Get("unshared-close")
+	_, err = app.SafeGet("unshared")
+	require.Nil(t, err)
+	_, err = app.SafeGet("unshared-close")
+	require.Nil(t, err)
 
 	app.Delete()
 
-	app.Get("unshared")
-	require.Panics(t, func() {
-		app.Get("unshared-close")
-	})
+	_, err = app.SafeGet("unshared")
+	require.Nil(t, err)
+	_, err = app.SafeGet("unshared-close")
+	require.NotNil(t, err)
 }
 
-func TestGetterDeleteDuringBuild(t *testing.T) {
+func TestGetterSafeDeleteDuringBuild(t *testing.T) {
 	built := false
 	closed := false
 
@@ -250,15 +271,14 @@ func TestGetterDeleteDuringBuild(t *testing.T) {
 
 	app, _ := b.Build()
 
-	require.Panics(t, func() {
-		app.Get("object")
-	})
+	_, err := app.SafeGet("object")
+	require.NotNil(t, err)
 	require.True(t, app.IsClosed())
 	require.True(t, built)
 	require.True(t, closed)
 }
 
-func TestGetterDeleteDuringBuildWithCloseError(t *testing.T) {
+func TestGetterSafeDeleteDuringBuildWithCloseError(t *testing.T) {
 	built := false
 	closed := false
 
@@ -279,47 +299,42 @@ func TestGetterDeleteDuringBuildWithCloseError(t *testing.T) {
 
 	app, _ := b.Build()
 
-	require.Panics(t, func() {
-		app.Get("object")
-	})
+	_, err := app.SafeGet("object")
+	require.NotNil(t, err)
 	require.True(t, app.IsClosed())
 	require.True(t, built)
 	require.True(t, closed)
 }
 
-func TestGetterCycleError(t *testing.T) {
+func TestGetterSafeCycleError(t *testing.T) {
 	b, _ := NewEnhancedBuilder()
 
 	b.Add(&Def{
 		Name: "o1",
 		Build: func(ctn Container) (interface{}, error) {
-			ctn.Get("o2")
-			return nil, nil
+			return ctn.SafeGet("o2")
 		},
 	})
 	b.Add(&Def{
 		Name: "o2",
 		Build: func(ctn Container) (interface{}, error) {
-			ctn.Get("o3")
-			return nil, nil
+			return ctn.SafeGet("o3")
 		},
 	})
 	b.Add(&Def{
 		Name: "o3",
 		Build: func(ctn Container) (interface{}, error) {
-			ctn.Get("o1")
-			return nil, nil
+			return ctn.SafeGet("o1")
 		},
 	})
 
 	app, _ := b.Build()
 
-	require.Panics(t, func() {
-		app.Get("o1")
-	})
+	_, err := app.SafeGet("o1")
+	require.NotNil(t, err)
 }
 
-func TestGetterConcurrentBuild(t *testing.T) {
+func TestGetterSafeConcurrentBuild(t *testing.T) {
 	var numBuild uint64
 	var numClose uint64
 
@@ -346,7 +361,7 @@ func TestGetterConcurrentBuild(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			req, _ := app.SubContainer()
-			req.Get("object")
+			req.SafeGet("object")
 			req.Delete()
 			wg.Done()
 		}()

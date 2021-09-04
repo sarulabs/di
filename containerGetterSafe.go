@@ -6,19 +6,19 @@ import (
 	"sync/atomic"
 )
 
-// Get retrieves an object from the Container.
+// SafeGet retrieves an object from the Container.
 // The object has to belong to the Container or one of its parents.
 // If the object does not already exist, it is created and saved in the Container.
-// If the object can not be created, it panics.
+// If the object can not be created, it returns an error.
 //
 // There are different ways to retrieve an object.
-//   - From its name: ctn.Get("object-name")
-//   - From its definition: ctn.Get(objectDef) or ctn.Get(objectDefPtr) - only with the EnhancedBuilder
-//   - From its index: ctn.Get(objectDef.Index()) - only with the EnhancedBuilder
-//   - From its type: ctn.Get(reflect.typeOf(MyObject{})) - only if objectDef.Is includes the given type
+//   - From its name: ctn.SafeGet("object-name")
+//   - From its definition: ctn.SafeGet(objectDef) or ctn.SafeGet(objectDefPtr) - only with the EnhancedBuilder
+//   - From its index: ctn.SafeGet(objectDef.Index()) - only with the EnhancedBuilder
+//   - From its type: ctn.SafeGet(reflect.typeOf(MyObject{})) - only if objectDef.Is includes the given type
 //     In case there are more than one definition matching the given type,
 //     the chosen one is the last definition inserted in the builder.
-func (ctn Container) Get(in interface{}) interface{} {
+func (ctn Container) SafeGet(in interface{}) (interface{}, error) {
 	var index int
 
 	switch v := in.(type) {
@@ -32,19 +32,18 @@ func (ctn Container) Get(in interface{}) interface{} {
 		var ok bool
 		index, ok = ctn.core.indexesByName[v]
 		if !ok {
-			panic(fmt.Errorf("could not get `%s` because the definition does not exist", v))
+			return nil, fmt.Errorf("could not get `%s` because the definition does not exist", v)
 		}
 	case reflect.Type:
 		indexes := ctn.core.indexesByType[v]
 		if len(indexes) == 0 {
-			panic(fmt.Errorf("could not get type `%s` because it is not defined", v))
-		} else {
-			index = indexes[len(indexes)-1]
+			return nil, fmt.Errorf("could not get type `%s` because it is not defined", v)
 		}
+		index = indexes[len(indexes)-1]
 	}
 
 	if index < 0 || index >= len(ctn.core.definitionScopeLevels) {
-		panic(fmt.Errorf("could not get index `%d` because it does not exist", index))
+		return nil, fmt.Errorf("could not get index `%d` because it does not exist", index)
 	}
 
 	// Finding the right core.
@@ -56,17 +55,17 @@ func (ctn Container) Get(in interface{}) interface{} {
 			core = core.parent
 
 			if core == nil {
-				panic(fmt.Errorf(
+				return nil, fmt.Errorf(
 					"could not get `%s` because it requires `%s` scope which does not match this container scope or any of its parents scope",
 					inputCore.definitions[index].Name,
 					inputCore.definitions[index].Scope,
-				))
+				)
 			}
 		}
 	}
 
 	if atomic.LoadInt32(&core.isBuilt[index]) == 1 {
-		return core.objects[index] // Try to fetch an already built object as quickly as possible.
+		return core.objects[index], nil // Try to fetch an already built object as quickly as possible.
 	}
 
 	if inputCore != core {
@@ -81,7 +80,7 @@ func (ctn Container) Get(in interface{}) interface{} {
 	if len(ctn.builtList) > 0 {
 		for _, builtIndex := range ctn.builtList {
 			if builtIndex == index {
-				panic(formatCycleError(ctn, def))
+				return nil, formatCycleError(ctn, def)
 			}
 		}
 	}
@@ -91,18 +90,18 @@ func (ctn Container) Get(in interface{}) interface{} {
 		obj, err := buildObject(def.Build, ctn, index, def.Name)
 
 		if err != nil {
-			panic(fmt.Errorf("could not build `%s`: %+v", def.Name, err))
+			return nil, fmt.Errorf("could not build `%s`: %+v", def.Name, err)
 		}
 
 		if def.Close == nil {
-			return obj
+			return obj, nil
 		}
 
 		core.m.Lock()
 		if core.closed {
 			core.m.Unlock()
 			err := closeObject(obj, def.Close, def.Name)
-			panic(formatBuiltOnClosedContainerError(def, err))
+			return nil, formatBuiltOnClosedContainerError(def, err)
 		}
 		core.unshared = append(core.unshared, obj)
 		core.unsharedIndex = append(core.unsharedIndex, index)
@@ -113,27 +112,27 @@ func (ctn Container) Get(in interface{}) interface{} {
 		}
 		core.m.Unlock()
 
-		return obj
+		return obj, nil
 	}
 
 	// Handle shared objects.
 	core.m.Lock()
 	if core.closed {
 		core.m.Unlock()
-		panic(fmt.Errorf(
+		return nil, fmt.Errorf(
 			"could not get `%s` because the container has been deleted", def.Name,
-		))
+		)
 	}
 
 	if atomic.LoadInt32(&core.isBuilt[index]) == 1 { // Check again if the object was created, with the lock this time.
 		core.m.Unlock()
-		return core.objects[index]
+		return core.objects[index], nil
 	}
 
 	if building := core.building[index]; building != nil {
 		core.m.Unlock()
-		<-(*building)         // Wait for the object to be created by another call to Get.
-		return ctn.Get(index) // Can not get the object without calling Get again as its creation may have failed.
+		<-(*building)             // Wait for the object to be created by another call to SafeGet.
+		return ctn.SafeGet(index) // Can not get the object without calling SafeGet again as its creation may have failed.
 	}
 
 	building := make(buildingChan)
@@ -151,7 +150,7 @@ func (ctn Container) Get(in interface{}) interface{} {
 		core.building[index] = nil
 		core.m.Unlock()
 		close(building)
-		panic(err)
+		return nil, err
 	}
 
 	if core.closed {
@@ -160,7 +159,7 @@ func (ctn Container) Get(in interface{}) interface{} {
 		core.m.Unlock()
 		close(building)
 		err = closeObject(obj, def.Close, def.Name)
-		panic(formatBuiltOnClosedContainerError(def, err))
+		return nil, formatBuiltOnClosedContainerError(def, err)
 	}
 
 	if len(ctn.builtList) == 0 {
@@ -173,5 +172,5 @@ func (ctn Container) Get(in interface{}) interface{} {
 	core.m.Unlock()
 	close(building)
 
-	return obj
+	return obj, nil
 }

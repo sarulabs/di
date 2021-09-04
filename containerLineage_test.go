@@ -8,9 +8,9 @@ import (
 
 func TestSubContainerCreation(t *testing.T) {
 	var err error
-	b, _ := NewBuilder()
+	b, _ := NewEnhancedBuilder()
 
-	app := b.Build()
+	app, _ := b.Build()
 
 	request, err := app.SubContainer()
 	require.Nil(t, err)
