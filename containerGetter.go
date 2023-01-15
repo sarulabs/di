@@ -12,12 +12,12 @@ import (
 // If the object can not be created, it panics.
 //
 // There are different ways to retrieve an object.
-// - From its name: ctn.Get("object-name")
-// - From its definition: ctn.Get(objectDef) or ctn.Get(objectDefPtr) - only with the EnhancedBuilder
-// - From its index: ctn.Get(objectDef.Index()) - only with the EnhancedBuilder
-// - From its type: ctn.Get(reflect.typeOf(MyObject{})) - only if objectDef.Is includes the given type
-//                  In case there are more than one definition matching the given type,
-//                  the chosen one is the last definition inserted in the builder.
+//   - From its name: ctn.Get("object-name")
+//   - From its definition: ctn.Get(objectDef) or ctn.Get(objectDefPtr) - only with the EnhancedBuilder
+//   - From its index: ctn.Get(objectDef.Index()) - only with the EnhancedBuilder
+//   - From its type: ctn.Get(reflect.typeOf(MyObject{})) - only if objectDef.Is includes the given type
+//     In case there are more than one definition matching the given type,
+//     the chosen one is the last definition inserted in the builder.
 func (ctn Container) Get(in interface{}) interface{} {
 	var index int
 
@@ -35,7 +35,7 @@ func (ctn Container) Get(in interface{}) interface{} {
 			panic(fmt.Errorf("could not get `%s` because the definition does not exist", v))
 		}
 	case reflect.Type:
-		indexes, _ := ctn.core.indexesByType[v]
+		indexes := ctn.core.indexesByType[v]
 		if len(indexes) == 0 {
 			panic(fmt.Errorf("could not get type `%s` because it is not defined", v))
 		} else {

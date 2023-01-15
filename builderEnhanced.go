@@ -153,7 +153,7 @@ func (b *EnhancedBuilder) Build() (Container, error) {
 		return newClosedContainer(), err
 	}
 
-	// Update defintion scopes.
+	// Update definition scopes.
 	for name, def := range b.definitions {
 		if def.Scope == "" {
 			def.Scope = b.scopes[0]
@@ -195,7 +195,7 @@ func (b *EnhancedBuilder) Build() (Container, error) {
 			}
 		}
 
-		// Update the bound defintion.
+		// Update the bound definition.
 		if b.bindings[def.Name].builderBound {
 			return newClosedContainer(), errors.New("the definition `" + def.Name + "` was already added to another container")
 		}

@@ -29,12 +29,11 @@ func (ctn Container) UnscopedSafeGet(in interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("could not get `%s` because the definition does not exist", v)
 		}
 	case reflect.Type:
-		indexes, _ := ctn.core.indexesByType[v]
+		indexes := ctn.core.indexesByType[v]
 		if len(indexes) == 0 {
 			return nil, fmt.Errorf("could not get type `%s` because it is not defined", v)
-		} else {
-			index = indexes[len(indexes)-1]
 		}
+		index = indexes[len(indexes)-1]
 	}
 
 	if index < 0 || index >= len(ctn.core.definitionScopeLevels) {

@@ -29,7 +29,7 @@ func NewDefFor(obj interface{}) *Def {
 // The fields of the generated object are filled with objects from the container depending on their types
 // and the Is field of the definitions in the Container.
 //
-// The object will be generated using reflexion. That implies that it is slower compared to a manually written function.
+// The object will be generated using reflection. That implies that it is slower compared to a manually written function.
 // But if you just use this for shared definitions in the main scope, it should not be a problem
 // as the objects are only built once.
 func NewDefForType(obj interface{}) *Def {
@@ -63,7 +63,7 @@ type Def struct {
 	// You can set multiple types, for example a structure and an interface implemented by the structure.
 	// The Is field can be used to retrieve an object by its type instead of its name.
 	// e.g.: ctn.Get(reflect.Type(MyStruct{}))
-	// If multiple defintions have the same type, the one that was added last in the builder is used to retrieve the object.
+	// If multiple definitions have the same type, the one that was added last in the builder is used to retrieve the object.
 	// The Is field is important if you are using NewBuildFuncForType.
 	// It allows to create a Build function that creates an object whose fields are filled
 	// depending on their type and the types of the definitions in the Container.

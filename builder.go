@@ -131,7 +131,7 @@ func (b *Builder) Build() Container {
 		return newClosedContainer()
 	}
 
-	// Update defintion scopes.
+	// Update definition scopes.
 	for name, def := range b.definitions {
 		if def.Scope == "" {
 			def.Scope = b.scopes[0]

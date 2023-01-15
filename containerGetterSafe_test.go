@@ -87,48 +87,69 @@ func TestGetterSafeGet(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
 	a, err = subrequest.SafeGet(*defA)
+	require.Nil(t, err)
 	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
 	a, err = subrequest.SafeGet(defA.Index())
+	require.Nil(t, err)
 	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
 	a, err = subrequest.SafeGet("defA")
+	require.Nil(t, err)
 	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
 	a, err = subrequest.SafeGet(reflect.TypeOf(&mockA{}))
+	require.Nil(t, err)
 	require.Equal(t, "ok", a.(*mockA).BField.CField.SField)
 
 	var b interface{}
 
 	b, err = subrequest.SafeGet(defB)
+	require.Nil(t, err)
 	require.Equal(t, "ok", b.(*mockB).CField.SField)
 	b, err = subrequest.SafeGet(*defB)
+	require.Nil(t, err)
 	require.Equal(t, "ok", b.(*mockB).CField.SField)
+	require.Nil(t, err)
 	b, err = subrequest.SafeGet(defB.Index())
 	require.Equal(t, "ok", b.(*mockB).CField.SField)
+	require.Nil(t, err)
 	b, err = subrequest.SafeGet("defB")
+	require.Nil(t, err)
 	require.Equal(t, "ok", b.(*mockB).CField.SField)
 	b, err = subrequest.SafeGet(reflect.TypeOf(&mockB{}))
+	require.Nil(t, err)
 	require.Equal(t, "ok", b.(*mockB).CField.SField)
 
 	var c interface{}
 
 	c, err = subrequest.SafeGet(defC)
+	require.Nil(t, err)
 	require.Equal(t, "ok", c.(mockC).SField)
 	c, err = subrequest.SafeGet(*defC)
+	require.Nil(t, err)
 	require.Equal(t, "ok", c.(mockC).SField)
 	c, err = subrequest.SafeGet(defC.Index())
+	require.Nil(t, err)
 	require.Equal(t, "ok", c.(mockC).SField)
 	c, err = subrequest.SafeGet("defC")
+	require.Nil(t, err)
 	require.Equal(t, "ok", c.(mockC).SField)
 	c, err = subrequest.SafeGet(reflect.TypeOf(mockC{}))
+	require.Nil(t, err)
 	require.Equal(t, "ok", c.(mockC).SField)
 
 	// same object retrieved every time
 	var a2, b2, c2 interface{}
 	a, err = subrequest.SafeGet(defA)
+	require.Nil(t, err)
 	a2, err = subrequest.SafeGet(defA)
+	require.Nil(t, err)
 	b, err = subrequest.SafeGet(defB)
+	require.Nil(t, err)
 	b2, err = subrequest.SafeGet(defB)
+	require.Nil(t, err)
 	c, err = subrequest.SafeGet(defC)
+	require.Nil(t, err)
 	c2, err = subrequest.SafeGet(defC)
+	require.Nil(t, err)
 	require.True(t, a.(*mockA) == a2.(*mockA))
 	require.True(t, b.(*mockB) == b2.(*mockB))
 	require.True(t, c.(mockC) == c2.(mockC))
@@ -159,6 +180,7 @@ func TestGetterSafeGet(t *testing.T) {
 	_, err = app.SafeGet(defB)
 	require.NotNil(t, err)
 	c, err = app.SafeGet(defC)
+	require.Nil(t, err)
 	require.Equal(t, "ok", c.(mockC).SField)
 
 	// after deletion only already built objects can be retrieved
@@ -204,7 +226,9 @@ func TestGetterSafeGetUnshared(t *testing.T) {
 
 	// should retrieve different object every time
 	obj1, err := app.SafeGet("unshared")
+	require.Nil(t, err)
 	obj2, err := app.SafeGet("unshared")
+	require.Nil(t, err)
 
 	require.False(t, obj1 == obj2)
 

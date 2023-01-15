@@ -215,7 +215,7 @@ func TestEnhancedBuilderBuild(t *testing.T) {
 	require.Equal(t, 1, defB.Index())
 	require.Equal(t, 1, defB.builderIndex)
 
-	// Can not bind the same def two two different builders.
+	// Can not bind the same def two two different containers.
 	def := NewDef(buildFunc).SetName("def")
 
 	b, err = NewEnhancedBuilder()
@@ -223,7 +223,6 @@ func TestEnhancedBuilderBuild(t *testing.T) {
 	err = b.Add(def)
 	require.Nil(t, err)
 	_, err = b.Build()
-	require.Nil(t, err)
 	require.Nil(t, err)
 	_, err = b.Build()
 	require.NotNil(t, err, "can not build the same definition twice")

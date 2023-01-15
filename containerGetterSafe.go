@@ -12,12 +12,12 @@ import (
 // If the object can not be created, it returns an error.
 //
 // There are different ways to retrieve an object.
-// - From its name: ctn.SafeGet("object-name")
-// - From its definition: ctn.SafeGet(objectDef) or ctn.SafeGet(objectDefPtr) - only with the EnhancedBuilder
-// - From its index: ctn.SafeGet(objectDef.Index()) - only with the EnhancedBuilder
-// - From its type: ctn.SafeGet(reflect.typeOf(MyObject{})) - only if objectDef.Is includes the given type
-//                  In case there are more than one definition matching the given type,
-//                  the chosen one is the last definition inserted in the builder.
+//   - From its name: ctn.SafeGet("object-name")
+//   - From its definition: ctn.SafeGet(objectDef) or ctn.SafeGet(objectDefPtr) - only with the EnhancedBuilder
+//   - From its index: ctn.SafeGet(objectDef.Index()) - only with the EnhancedBuilder
+//   - From its type: ctn.SafeGet(reflect.typeOf(MyObject{})) - only if objectDef.Is includes the given type
+//     In case there are more than one definition matching the given type,
+//     the chosen one is the last definition inserted in the builder.
 func (ctn Container) SafeGet(in interface{}) (interface{}, error) {
 	var index int
 
@@ -35,12 +35,11 @@ func (ctn Container) SafeGet(in interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("could not get `%s` because the definition does not exist", v)
 		}
 	case reflect.Type:
-		indexes, _ := ctn.core.indexesByType[v]
+		indexes := ctn.core.indexesByType[v]
 		if len(indexes) == 0 {
 			return nil, fmt.Errorf("could not get type `%s` because it is not defined", v)
-		} else {
-			index = indexes[len(indexes)-1]
 		}
+		index = indexes[len(indexes)-1]
 	}
 
 	if index < 0 || index >= len(ctn.core.definitionScopeLevels) {

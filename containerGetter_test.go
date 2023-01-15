@@ -118,9 +118,15 @@ func TestGetterGet(t *testing.T) {
 	require.Equal(t, "ok", c.SField)
 
 	// same object retrieved every time
-	require.True(t, subrequest.Get(defA).(*mockA) == subrequest.Get(defA).(*mockA))
-	require.True(t, subrequest.Get(defB).(*mockB) == subrequest.Get(defB).(*mockB))
-	require.True(t, subrequest.Get(defC).(mockC) == subrequest.Get(defC).(mockC))
+	oA1 := subrequest.Get(defA).(*mockA)
+	oA2 := subrequest.Get(defA).(*mockA)
+	require.True(t, oA1 == oA2)
+	oB1 := subrequest.Get(defB).(*mockB)
+	oB2 := subrequest.Get(defB).(*mockB)
+	require.True(t, oB1 == oB2)
+	oC1 := subrequest.Get(defC).(mockC)
+	oC2 := subrequest.Get(defC).(mockC)
+	require.True(t, oC1 == oC2)
 
 	// unknown definitions
 	require.Panics(t, func() {
