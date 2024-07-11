@@ -612,7 +612,7 @@ import (
     "database/sql"
     "net/http"
 
-    "github.com/sarulabs/di"
+    "github.com/sarulabs/di/v2"
 
     _ "github.com/go-sql-driver/mysql"
 )
