@@ -9,35 +9,33 @@ import (
 )
 
 func TestDelete(t *testing.T) {
-	b, _ := NewBuilder()
+	b, _ := NewEnhancedBuilder()
 
-	b.Add([]Def{
-		{
-			Name:  "obj1",
-			Scope: App,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return nil
-			},
+	b.Add(&Def{
+		Name:  "obj1",
+		Scope: App,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
 		},
-		{
-			Name:  "obj2",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return nil
 		},
-	}...)
+	})
+	b.Add(&Def{
+		Name:  "obj2",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
+		},
+	})
 
 	var err error
 
-	app := b.Build()
+	app, _ := b.Build()
 	request, _ := app.SubContainer()
-	obj1 := request.Get("obj1").(*mockObject)
-	obj2 := request.Get("obj2").(*mockObject)
+	obj1 := request.Get("obj1").(*mockD)
+	obj2 := request.Get("obj2").(*mockD)
 
 	require.False(t, app.IsClosed())
 	require.False(t, request.IsClosed())
@@ -64,35 +62,33 @@ func TestDelete(t *testing.T) {
 }
 
 func TestDeleteWithCloseError(t *testing.T) {
-	b, _ := NewBuilder()
+	b, _ := NewEnhancedBuilder()
 
-	b.Add([]Def{
-		{
-			Name:  "obj1",
-			Scope: App,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return errors.New("close error")
-			},
+	b.Add(&Def{
+		Name:  "obj1",
+		Scope: App,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
 		},
-		{
-			Name:  "obj2",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return errors.New("close error")
 		},
-	}...)
+	})
+	b.Add(&Def{
+		Name:  "obj2",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
+		},
+	})
 
 	var err error
 
-	app := b.Build()
+	app, _ := b.Build()
 	request, _ := app.SubContainer()
-	obj1 := request.Get("obj1").(*mockObject)
-	obj2 := request.Get("obj2").(*mockObject)
+	obj1 := request.Get("obj1").(*mockD)
+	obj2 := request.Get("obj2").(*mockD)
 
 	require.False(t, app.IsClosed())
 	require.False(t, request.IsClosed())
@@ -119,54 +115,52 @@ func TestDeleteWithCloseError(t *testing.T) {
 }
 
 func TestDeleteWithSubContainers(t *testing.T) {
-	b, _ := NewBuilder()
+	b, _ := NewEnhancedBuilder()
 
-	b.Add([]Def{
-		{
-			Name:  "obj1",
-			Scope: App,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return nil
-			},
+	b.Add(&Def{
+		Name:  "obj1",
+		Scope: App,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
 		},
-		{
-			Name:  "obj2",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return nil
-			},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return nil
 		},
-		{
-			Name:  "obj3",
-			Scope: SubRequest,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return nil
-			},
+	})
+	b.Add(&Def{
+		Name:  "obj2",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
 		},
-		{
-			Name:  "obj4",
-			Scope: SubRequest,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return nil
 		},
-	}...)
+	})
+	b.Add(&Def{
+		Name:  "obj3",
+		Scope: SubRequest,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
+		},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "obj4",
+		Scope: SubRequest,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
+		},
+	})
 
 	var err error
 
-	app := b.Build()
+	app, _ := b.Build()
 	request, _ := app.SubContainer()
 	subrequest, _ := request.SubContainer()
 
@@ -174,10 +168,10 @@ func TestDeleteWithSubContainers(t *testing.T) {
 	require.False(t, request.IsClosed())
 	require.False(t, subrequest.IsClosed())
 
-	obj1 := app.Get("obj1").(*mockObject)
-	obj2 := request.Get("obj2").(*mockObject)
-	obj3 := subrequest.Get("obj3").(*mockObject)
-	_ = subrequest.Get("obj4").(*mockObject)
+	obj1 := app.Get("obj1").(*mockD)
+	obj2 := request.Get("obj2").(*mockD)
+	obj3 := subrequest.Get("obj3").(*mockD)
+	_ = subrequest.Get("obj4").(*mockD)
 
 	// delete request (it forces the subrequest deletion)
 	err = request.DeleteWithSubContainers()
@@ -214,43 +208,41 @@ func TestDeleteWithSubContainers(t *testing.T) {
 }
 
 func TestDeleteWithSubContainersWithError(t *testing.T) {
-	b, _ := NewBuilder()
+	b, _ := NewEnhancedBuilder()
 
-	b.Add([]Def{
-		{
-			Name:  "obj1",
-			Scope: App,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return nil
-			},
+	b.Add(&Def{
+		Name:  "obj1",
+		Scope: App,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
 		},
-		{
-			Name:  "obj2",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return errors.New("close error")
-			},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return nil
 		},
-	}...)
+	})
+	b.Add(&Def{
+		Name:  "obj2",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
+		},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return errors.New("close error")
+		},
+	})
 
 	var err error
 
-	app := b.Build()
+	app, _ := b.Build()
 	request, _ := app.SubContainer()
 
 	require.False(t, app.IsClosed())
 	require.False(t, request.IsClosed())
 
-	obj1 := request.Get("obj1").(*mockObject)
-	obj2 := request.Get("obj2").(*mockObject)
+	obj1 := request.Get("obj1").(*mockD)
+	obj2 := request.Get("obj2").(*mockD)
 
 	// delete request (it forces the request deletion)
 	err = app.DeleteWithSubContainers()
@@ -264,20 +256,20 @@ func TestDeleteWithSubContainersWithError(t *testing.T) {
 }
 
 func TestClosePanic(t *testing.T) {
-	b, _ := NewBuilder()
+	b, _ := NewEnhancedBuilder()
 
-	b.Add(Def{
+	b.Add(&Def{
 		Name:  "object",
 		Scope: App,
 		Build: func(ctn Container) (interface{}, error) {
-			return &mockObject{}, nil
+			return &mockD{}, nil
 		},
 		Close: func(obj interface{}) error {
 			panic("panic in Close function")
 		},
 	})
 
-	app := b.Build()
+	app, _ := b.Build()
 
 	defer func() {
 		require.Nil(t, recover(), "Close should not panic")
@@ -291,51 +283,49 @@ func TestClosePanic(t *testing.T) {
 }
 
 func TestClean(t *testing.T) {
-	b, _ := NewBuilder()
+	b, _ := NewEnhancedBuilder()
 
-	b.Add([]Def{
-		{
-			Name:  "object",
-			Scope: SubRequest,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return nil
-			},
+	b.Add(&Def{
+		Name:  "object",
+		Scope: SubRequest,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
 		},
-		{
-			Name:  "object-close-err",
-			Scope: SubRequest,
-			Build: func(ctn Container) (interface{}, error) {
-				return &mockObject{}, nil
-			},
-			Close: func(obj interface{}) error {
-				obj.(*mockObject).Closed = true
-				return errors.New("close error")
-			},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return nil
 		},
-	}...)
+	})
+	b.Add(&Def{
+		Name:  "object-close-err",
+		Scope: SubRequest,
+		Build: func(ctn Container) (interface{}, error) {
+			return &mockD{}, nil
+		},
+		Close: func(obj interface{}) error {
+			obj.(*mockD).Closed = true
+			return errors.New("close error")
+		},
+	})
 
-	app := b.Build()
+	app, _ := b.Build()
 
 	err := app.Clean()
 	require.Nil(t, err, "should be able to call Clean even without children")
 
-	var obj, objErr *mockObject
+	var obj, objErr *mockD
 
-	obj = app.UnscopedGet("object").(*mockObject)
+	obj = app.UnscopedGet("object").(*mockD)
 	require.False(t, obj.Closed, "the object should not be closed")
 
 	err = app.Clean()
 	require.Nil(t, err)
 	require.True(t, obj.Closed, "the object should be closed")
 
-	obj = app.UnscopedGet("object").(*mockObject)
+	obj = app.UnscopedGet("object").(*mockD)
 	require.False(t, obj.Closed, "it is a new object, it should not be closed")
 
-	objErr = app.UnscopedGet("object-close-err").(*mockObject)
+	objErr = app.UnscopedGet("object-close-err").(*mockD)
 	require.False(t, obj.Closed)
 
 	err = app.Clean()
@@ -350,105 +340,103 @@ func TestCloseOrder(t *testing.T) {
 		closed = []string{}
 	)
 
-	b, _ := NewBuilder()
+	b, _ := NewEnhancedBuilder()
 
-	b.Add([]Def{
-		{
-			Name:  "app-1",
-			Scope: App,
-			Build: func(ctn Container) (interface{}, error) {
-				ctn.Get("app-2")
-				return nil, nil
-			},
-			Close: func(obj interface{}) error {
-				closed = append(closed, "app-1")
-				return nil
-			},
+	b.Add(&Def{
+		Name:  "app-1",
+		Scope: App,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.Get("app-2")
+			return nil, nil
 		},
-		{
-			Name:  "app-2",
-			Scope: App,
-			Build: func(ctn Container) (interface{}, error) {
-				return nil, nil
-			},
-			Close: func(obj interface{}) error {
-				closed = append(closed, "app-2")
-				return nil
-			},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "app-1")
+			return nil
 		},
-		{
-			Name:  "req-1",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				ctn.Get("app-1")
-				return nil, nil
-			},
-			Close: func(obj interface{}) error {
-				closed = append(closed, "req-1")
-				return nil
-			},
+	})
+	b.Add(&Def{
+		Name:  "app-2",
+		Scope: App,
+		Build: func(ctn Container) (interface{}, error) {
+			return nil, nil
 		},
-		{
-			Name:  "req-2",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				ctn.Get("req-1")
-				ctn.Get("req-3")
-				ctn.Get("req-4")
-				ctn.Get("app-1")
-				return nil, nil
-			},
-			Close: func(obj interface{}) error {
-				closed = append(closed, "req-2")
-				return nil
-			},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "app-2")
+			return nil
 		},
-		{
-			Name:  "req-3",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				ctn.Get("req-1")
-				ctn.Get("app-2")
-				return nil, nil
-			},
-			Close: func(obj interface{}) error {
-				closed = append(closed, "req-3")
-				return nil
-			},
+	})
+	b.Add(&Def{
+		Name:  "req-1",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.Get("app-1")
+			return nil, nil
 		},
-		{
-			Name:  "req-4",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				ctn.Get("req-3")
-				ctn.Get("app-1")
-				ctn.Get("req-5")
-				return nil, nil
-			},
-			Close: func(obj interface{}) error {
-				closed = append(closed, "req-4")
-				return nil
-			},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "req-1")
+			return nil
 		},
-		{
-			Name:  "req-5",
-			Scope: Request,
-			Build: func(ctn Container) (interface{}, error) {
-				ctn.Get("app-1")
-				ctn.Get("req-1")
+	})
+	b.Add(&Def{
+		Name:  "req-2",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.Get("req-1")
+			ctn.Get("req-3")
+			ctn.Get("req-4")
+			ctn.Get("app-1")
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "req-2")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "req-3",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.Get("req-1")
+			ctn.Get("app-2")
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "req-3")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "req-4",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.Get("req-3")
+			ctn.Get("app-1")
+			ctn.Get("req-5")
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "req-4")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "req-5",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.Get("app-1")
+			ctn.Get("req-1")
 
-				index += 1
-				return index, nil
-			},
-			Close: func(obj interface{}) error {
-				closed = append(closed, fmt.Sprintf("req-5#%d", obj.(int)))
-				return nil
-			},
-			Unshared: true,
+			index++
+			return index, nil
 		},
-	}...)
+		Close: func(obj interface{}) error {
+			closed = append(closed, fmt.Sprintf("req-5#%d", obj.(int)))
+			return nil
+		},
+		Unshared: true,
+	})
 
-	app := b.Build()
+	app, _ := b.Build()
 
 	index = 0
 	r1, _ := app.SubContainer()
@@ -468,6 +456,144 @@ func TestCloseOrder(t *testing.T) {
 	r2.Get("req-3")
 	r2.Get("req-1")
 	r2.Get("req-5")
+
+	var err error
+
+	err = r1.Delete()
+	require.Nil(t, err)
+	require.Equal(t, []string{"req-5#2", "req-2", "req-4", "req-5#1", "req-3", "req-1"}, closed)
+
+	err = r2.Delete()
+	require.Nil(t, err)
+	require.Equal(t, []string{"req-5#2", "req-2", "req-4", "req-5#1", "req-3", "req-1", "req-5#2", "req-4", "req-5#1", "req-3", "req-1"}, closed)
+
+	err = app.Delete()
+	require.Nil(t, err)
+	require.Equal(t, []string{"req-5#2", "req-2", "req-4", "req-5#1", "req-3", "req-1", "req-5#2", "req-4", "req-5#1", "req-3", "req-1", "app-1", "app-2"}, closed)
+}
+
+func TestCloseOrderSafeGet(t *testing.T) {
+	var (
+		index  int
+		closed = []string{}
+	)
+
+	b, _ := NewEnhancedBuilder()
+
+	b.Add(&Def{
+		Name:  "app-1",
+		Scope: App,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.SafeGet("app-2")
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "app-1")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "app-2",
+		Scope: App,
+		Build: func(ctn Container) (interface{}, error) {
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "app-2")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "req-1",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.SafeGet("app-1")
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "req-1")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "req-2",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.SafeGet("req-1")
+			ctn.SafeGet("req-3")
+			ctn.SafeGet("req-4")
+			ctn.SafeGet("app-1")
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "req-2")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "req-3",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.SafeGet("req-1")
+			ctn.SafeGet("app-2")
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "req-3")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "req-4",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.SafeGet("req-3")
+			ctn.SafeGet("app-1")
+			ctn.SafeGet("req-5")
+			return nil, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, "req-4")
+			return nil
+		},
+	})
+	b.Add(&Def{
+		Name:  "req-5",
+		Scope: Request,
+		Build: func(ctn Container) (interface{}, error) {
+			ctn.SafeGet("app-1")
+			ctn.SafeGet("req-1")
+
+			index++
+			return index, nil
+		},
+		Close: func(obj interface{}) error {
+			closed = append(closed, fmt.Sprintf("req-5#%d", obj.(int)))
+			return nil
+		},
+		Unshared: true,
+	})
+
+	app, _ := b.Build()
+
+	index = 0
+	r1, _ := app.SubContainer()
+	r1.SafeGet("req-1")
+	r1.SafeGet("req-2")
+	r1.SafeGet("req-3")
+	r1.SafeGet("req-4")
+	r1.SafeGet("req-5")
+	r1.SafeGet("app-1")
+	r1.SafeGet("app-2")
+
+	index = 0
+	r2, _ := app.SubContainer()
+	r2.SafeGet("app-2")
+	r2.SafeGet("app-1")
+	r2.SafeGet("req-4")
+	r2.SafeGet("req-3")
+	r2.SafeGet("req-1")
+	r2.SafeGet("req-5")
 
 	var err error
 

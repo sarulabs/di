@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -58,7 +57,7 @@ func TestHTTPMiddleware(t *testing.T) {
 	res, err := http.Get(ts.URL)
 	require.Nil(t, err)
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	res.Body.Close()
 	if err != nil {
 		require.Nil(t, err)

@@ -5,61 +5,58 @@ import (
 	"fmt"
 )
 
-// containerLineage contains all the functions that are useful
-// to retrieve or create the parent and children of a container.
-type containerLineage struct{}
-
-func (l *containerLineage) Parent(ctn *container) Container {
-	return l.parent(ctn)
-}
-
-func (l *containerLineage) parent(ctn *container) *container {
-	ctn.m.RLock()
-	parent := ctn.containerCore.parent
-	ctn.m.RUnlock()
-
-	return &container{
-		containerCore: parent,
+// Parent returns the parent Container.
+func (ctn Container) Parent() Container {
+	return Container{
+		core:      ctn.core.parent,
+		builtList: ctn.builtList,
 	}
 }
 
-func (l *containerLineage) SubContainer(ctn *container) (Container, error) {
-	child, err := l.createChild(ctn)
-	if err != nil {
-		return nil, err
+// SubContainer creates a new Container in the next sub-scope
+// that will have this Container as parent.
+func (ctn Container) SubContainer() (Container, error) {
+	if 1+ctn.core.scopeLevel >= len(ctn.core.scopes) {
+		return Container{}, fmt.Errorf("there is no more specific scope than `%s`", ctn.core.scopes[ctn.core.scopeLevel])
 	}
 
-	ctn.m.Lock()
+	child := Container{
+		core: &containerCore{
+			closed: false,
 
-	if ctn.closed {
-		ctn.m.Unlock()
-		return nil, errors.New("the container is closed")
+			scopes:     ctn.core.scopes,
+			scopeLevel: ctn.core.scopeLevel + 1,
+
+			parent:          ctn.core,
+			children:        map[*containerCore]struct{}{},
+			unscopedChild:   nil,
+			deleteIfNoChild: false,
+
+			indexesByName:         ctn.core.indexesByName,
+			indexesByType:         ctn.core.indexesByType,
+			definitions:           ctn.core.definitions,
+			definitionScopeLevels: ctn.core.definitionScopeLevels,
+			objects:               make([]interface{}, len(ctn.core.indexesByName)),
+			isBuilt:               make([]int32, len(ctn.core.indexesByName)),
+			building:              make([]*buildingChan, len(ctn.core.indexesByName)),
+			unshared:              []interface{}{},
+			unsharedIndex:         []int{},
+
+			dependencies: newGraph(),
+		},
+		builtList: make([]int, 0, 10),
 	}
 
-	ctn.children[child.containerCore] = struct{}{}
+	ctn.core.m.Lock()
 
-	ctn.m.Unlock()
+	if ctn.core.closed {
+		ctn.core.m.Unlock()
+		return Container{}, errors.New("the container is closed")
+	}
+
+	ctn.core.children[child.core] = struct{}{}
+
+	ctn.core.m.Unlock()
 
 	return child, nil
-}
-
-func (l *containerLineage) createChild(ctn *container) (*container, error) {
-	subscopes := ctn.SubScopes()
-
-	if len(subscopes) == 0 {
-		return nil, fmt.Errorf("there is no more specific scope than `%s`", ctn.scope)
-	}
-
-	return &container{
-		containerCore: &containerCore{
-			scope:         subscopes[0],
-			scopes:        ctn.scopes,
-			definitions:   ctn.definitions,
-			parent:        ctn.containerCore,
-			children:      map[*containerCore]struct{}{},
-			unscopedChild: nil,
-			objects:       map[objectKey]interface{}{},
-			dependencies:  newGraph(),
-		},
-	}, nil
 }
