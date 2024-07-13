@@ -62,7 +62,7 @@ type containerCore struct {
 
 	// dependencies is a graph that allows to determine
 	// in which order the definitions should be closed.
-	// Each vertice is an index. If >= 0 it is the index of a shared object.
+	// Each vertex is an index. If >= 0 it is the index of a shared object.
 	// If < 0, it is the opposite of the index in unshared minus 1.
 	// For example the first object in unshared is at position 0, so its vertice is -0-1=-1.
 	dependencies *graph

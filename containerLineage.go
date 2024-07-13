@@ -5,12 +5,24 @@ import (
 	"fmt"
 )
 
-// Parent returns the parent Container.
-func (ctn Container) Parent() Container {
+// ParentContainer returns the parent Container.
+// If the Container does not have a parent, it returns an error.
+func (ctn Container) ParentContainer() (Container, error) {
+	if ctn.core.parent == nil {
+		return newClosedContainer(), errors.New("the container does not have a parent")
+	}
 	return Container{
 		core:      ctn.core.parent,
-		builtList: ctn.builtList,
-	}
+		builtList: make([]int, 0, 10),
+	}, nil
+}
+
+// Parent returns the parent Container.
+// It works like ParentContainer but without the error.
+// This method was kept to have some kind of backward compatibility.
+func (ctn Container) Parent() Container {
+	parent, _ := ctn.ParentContainer()
+	return parent
 }
 
 // SubContainer creates a new Container in the next sub-scope

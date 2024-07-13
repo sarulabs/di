@@ -534,6 +534,8 @@ The `Get`, `SafeGet` and `Fill` functions can retrieve an object defined in the 
 
 `UnscopedGet`, `UnscopedSafeGet` and `UnscopedFill` work like `Get`, `SafeGet` and `Fill` but can retrieve objects defined in a more generic scope. To do so, they generate sub-containers that can only be accessed internally by these three methods. To remove these containers without deleting the current container, you can call the `Clean` method.
 
+:warning: Do not use unscope functions inside a `Build` function. In this case, circular definitions are not detected. If you do this, you take the risk of having an infinite loop in your code when building an object.
+
 ```go
 builder, err := di.NewEnhancedBuilder()
 

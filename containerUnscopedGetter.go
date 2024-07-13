@@ -12,6 +12,10 @@ import (
 // To do so, UnscopedSafeGet creates a sub-container.
 // When the created object is no longer needed,
 // it is important to use the Clean method to delete this sub-container.
+//
+// /!\ Do not use unscope functions inside a `Build` function.
+// In this case, circular definitions are not detected. If you do this,
+// you take the risk of having an infinite loop in your code when building an object.
 func (ctn Container) UnscopedSafeGet(in interface{}) (interface{}, error) {
 	var index int
 
@@ -84,7 +88,7 @@ func (ctn Container) getUnscopedChild() (Container, error) {
 
 	return Container{
 		core:      unscopedChild,
-		builtList: ctn.builtList,
+		builtList: make([]int, 0, 10),
 	}, nil
 }
 
