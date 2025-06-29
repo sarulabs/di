@@ -76,3 +76,33 @@ func TestDefSetters(t *testing.T) {
 	require.Equal(t, []reflect.Type{reflect.TypeOf(""), reflect.TypeOf(Def{}), reflect.TypeOf(&Def{})}, def.Is)
 	require.Equal(t, []Tag{{Name: "tag1"}, {Name: "tag2"}}, def.Tags)
 }
+
+func TestNewIs(t *testing.T) {
+	is := NewIs()
+	require.Equal(t, []reflect.Type{}, is)
+
+	is = NewIs(mockA{})
+	require.Equal(t, []reflect.Type{reflect.TypeOf(mockA{})}, is)
+
+	is = NewIs((*mockA)(nil))
+	require.Equal(t, []reflect.Type{reflect.TypeOf((*mockA)(nil))}, is)
+
+	require.Panics(t, func() {
+		NewIs((mockInterface)(nil))
+	})
+
+	is = NewIs(reflect.TypeOf((*mockInterface)(nil)).Elem())
+	require.Equal(t, []reflect.Type{reflect.TypeOf((*mockInterface)(nil)).Elem()}, is)
+
+	is = NewIs((*mockInterface)(nil))
+	require.Equal(t, []reflect.Type{reflect.TypeOf((*mockInterface)(nil))}, is)
+
+	is = NewIs("")
+	require.Equal(t, []reflect.Type{reflect.TypeOf("")}, is)
+
+	is = NewIs((*string)(nil))
+	require.Equal(t, []reflect.Type{reflect.TypeOf((*string)(nil))}, is)
+
+	is = NewIs(reflect.TypeOf(0), 0, []int{0})
+	require.Equal(t, []reflect.Type{reflect.TypeOf(0), reflect.TypeOf(0), reflect.TypeOf([]int{0})}, is)
+}
