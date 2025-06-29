@@ -134,11 +134,27 @@ func (d *Def) SetTags(tags ...Tag) *Def {
 // NewIs applies reflect.TypeOf to all the given instances
 // and returns a slice of []reflect.Type.
 // It can be used to fill the Def.Is field.
+// If an instance is already a reflect.Type, reflect.TypeOf will not be applied again.
+// There is an issue with interfaces as this function can not get the type of a nil interface.
+// NewIs((MyInterface)(nil)) will panic.
+// So if you want to register an interface you need to use a reflect.Type as parameter:
+// NewIs(reflect.TypeOf((*MyInterface)(nil)).Elem())
 func NewIs(instances ...interface{}) []reflect.Type {
 	is := []reflect.Type{}
 
 	for _, instance := range instances {
-		is = append(is, reflect.TypeOf(instance))
+		// Check if the instance is already a reflect.Type.
+		switch t := instance.(type) {
+		case reflect.Type:
+			is = append(is, t)
+			continue
+		}
+		// Try to get the type of the instance. It may not always be possible (nil interfaces).
+		typeOf := reflect.TypeOf(instance)
+		if typeOf == nil {
+			panic("could not get the type of %#v (nil interfaces are not accepted in NewIs)")
+		}
+		is = append(is, typeOf)
 	}
 
 	return is

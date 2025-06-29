@@ -41,6 +41,8 @@ func (ctn Container) Get(in interface{}) interface{} {
 		} else {
 			index = indexes[len(indexes)-1]
 		}
+	default:
+		panic(fmt.Errorf("could not get `%#v` because the argument is not valid (int, Def, *Def, string or reflect.Type allowed)", in))
 	}
 
 	if index < 0 || index >= len(ctn.core.definitionScopeLevels) {

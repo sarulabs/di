@@ -297,14 +297,32 @@ You can set multiple types, for example, a structure and an interface implemente
 
 ```go
 MyObjectDef = di.NewDefFor(myObject)
+// You need to set the definition Is field.
 // Declare that myObject is an instance of *MyObject and implements MyInterface.
-MyObjectDef.SetIs((*MyObject)(nil), (MyInterface)(nil))
+MyObjectDef.Is = []reflect.Type{
+    reflect.TypeOf((*MyObject)(nil)),
+    reflect.TypeOf((*MyInterface)(nil)).Elem()
+}
+// You can also use the SetIs method.
+MyObjectDef.SetIs(
+    reflect.TypeOf((*MyObject)(nil)),
+    reflect.TypeOf((*MyInterface)(nil)).Elem()
+)
+// When using the SetIs method, if a parameter is not a reflect.Type,
+// it will try to apply reflect.TypeOf on the parameter.
+// So for structures and pointers you can simplify the code.
+// But it does not work for nil interfaces. So you still have to use reflect.TypeOf yourself.
+MyObjectDef.SetIs(
+    (*MyObject)(nil),
+    reflect.TypeOf((*MyInterface)(nil)).Elem()
+)
 
 // ...
 
-// Retrieve the object from the types.
+// Retrieve the object from the types. There is no shortcut here, you need to provide a reflect.Type.
 ctn.Get(reflect.TypeOf((*MyObject)(nil))).(*MyObject)
-ctn.Get(reflect.TypeOf((MyInterface)(nil))).(MyInterface)
+ctn.Get(reflect.TypeOf((*MyInterface)(nil)).Elem()).(MyInterface)
+ctn.Get(reflect.TypeOf(MyObject{}).(MyObject)
 ```
 
 :warning: If multiple definitions have the same type, the one that was added last in the builder is used to retrieve the object.

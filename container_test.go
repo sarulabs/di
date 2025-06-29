@@ -22,6 +22,7 @@ type mockD struct {
 type mockE struct {
 	D *mockD
 }
+type mockInterface interface{}
 
 func TestRace(t *testing.T) {
 	b, _ := NewEnhancedBuilder()

@@ -174,6 +174,31 @@ func TestGetterGet(t *testing.T) {
 	})
 }
 
+func TestGetterGetWithInvalidType(t *testing.T) {
+	b, _ := NewEnhancedBuilder()
+
+	def := &Def{
+		Name: "mockA",
+		Is:   []reflect.Type{reflect.TypeOf(mockA{})},
+		Build: func(ctn Container) (interface{}, error) {
+			return mockA{}, nil
+		},
+	}
+
+	b.Add(def)
+
+	var app, _ = b.Build()
+
+	app.Get(def)
+	app.Get(def.Index())
+	app.Get("mockA")
+	app.Get(reflect.TypeOf(mockA{}))
+
+	require.Panics(t, func() {
+		app.Get(mockA{})
+	})
+}
+
 func TestGetterGetUnshared(t *testing.T) {
 	b, _ := NewEnhancedBuilder()
 
