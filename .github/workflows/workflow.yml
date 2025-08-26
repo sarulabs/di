@@ -2,7 +2,7 @@ name: Workflow
 
 on:
   push:
-    branches: [ "speed_improvements_wip" ]
+    branches: [ "**" ]
   pull_request:
     branches: [ "master" ]
 
