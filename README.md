@@ -1,4 +1,6 @@
-![DI](https://raw.githubusercontent.com/sarulabs/assets/master/di/logo_2023.png)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/sarulabs/assets/master/di/logo_2025.png" width="230" />
+</p>
 
 Dependency injection framework for go programs (golang).
 
