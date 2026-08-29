@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sarulabs/assets/master/di/logo_2025.png" width="230" />
+  <img src="https://raw.githubusercontent.com/sarulabs/assets/master/di/logo_2026.png" width="230" />
 </p>
 
 Dependency injection framework for go programs (golang).
